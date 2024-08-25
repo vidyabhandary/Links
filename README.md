@@ -1,9 +1,9 @@
 # Links
 
-Just a list of some fun, fascinating, informational or technical links that I thought to save.
+1. **8 versions of UUID and when to use them** (August 25, 2024)
+   [https://ntietz.com/blog/til-uses-for-the-different-uuid-versions](https://ntietz.com/blog/til-uses-for-the-different-uuid-versions)
 
-1. Aug 25 2024 - 8 versions of UUID and when to use them
+   Key takeaway: UUIDs have 8 versions, each with specific use cases. V4 (random) and V7 (sortable) are most common.
 
-   https://ntietz.com/blog/til-uses-for-the-different-uuid-versions
-
-2.
+2. **Reverse Engineering TicketMaster's Rotating Barcodes (SafeTix)** (August 25, 2024)
+   [https://conduition.io/coding/ticketmaster](https://conduition.io/coding/ticketmaster)
