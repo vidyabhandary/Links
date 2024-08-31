@@ -7,3 +7,6 @@
 
 2. **Reverse Engineering TicketMaster's Rotating Barcodes (SafeTix)** (August 25, 2024)
    [https://conduition.io/coding/ticketmaster](https://conduition.io/coding/ticketmaster)
+
+3. **Database Caching** (August 31, 2024)
+   [Database Caching](https://www.prisma.io/dataguide/managing-databases/introduction-database-caching)
