@@ -10,3 +10,9 @@
 
 3. **Database Caching** (August 31, 2024)
    [Database Caching](https://www.prisma.io/dataguide/managing-databases/introduction-database-caching)
+
+4. **SaaS Pricing Models** (September 13, 2024)
+   [SaaS Pricing Models](https://www.cobloom.com/blog/saas-pricing-models#)
+
+5. **One Minute Focus** (September 13, 2024)
+   [One Minute Focus](https://oneminutefocus.com/)
