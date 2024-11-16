@@ -58,12 +58,12 @@
 
 ---
 
-11. **45 ways to break an API server ** (Nov 16, 2024)
+11. **45 ways to break an API server** (Nov 16, 2024)
     [45 ways to break an API server(negative tests with examples)](https://dev.to/zvone187/45-ways-to-break-an-api-server-negative-tests-with-examples-4ok3)
 
 ---
 
-12. Cuckoo hashing Visualizations
+12. **Cuckoo hashing Visualizations** (Nov 16, 2024)
 
 - [Interactive Cuckoo](https://itu.dk/people/maau/teaching/visualisation/cuckoo-hashing/interactive.html)
 
@@ -73,7 +73,7 @@
 
 ---
 
-14. Claude Artifacts (Nov 16, 2024)
+13. **Claude Artifacts** (Nov 16, 2024)
 
 - [Claude Artifacts](https://simonwillison.net/2024/Oct/21/claude-artifacts)
 
@@ -81,17 +81,17 @@
 
 ---
 
-15. Accountability sinks (Nov 16, 2024)
+14. **Accountability sinks** (Nov 16, 2024)
     [Nobody is responsible](https://aworkinglibrary.com/writing/accountability-sinks)
 
 ---
 
-16. Understanding Round Robin DNS (Nov 16, 2024)
+15. **Understanding Round Robin DNS** (Nov 16, 2024)
     [Round robin DNS visualization](https://blog.hyperknot.com/p/understanding-round-robin-dns)
 
 ---
 
-17. Art of attention (Nov 16, 2024)
+16. **Art of attention** (Nov 16, 2024)
     [Concentration](https://billwear.github.io/art-of-attention.html)
 
 ---
