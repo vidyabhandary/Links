@@ -57,3 +57,41 @@
 - Every 90 min have 10 breaks of 20-30 seconds break, randomly (this is the key)
 
 ---
+
+11. **45 ways to break an API server ** (Nov 16, 2024)
+    [45 ways to break an API server(negative tests with examples)](https://dev.to/zvone187/45-ways-to-break-an-api-server-negative-tests-with-examples-4ok3)
+
+---
+
+12. Cuckoo hashing Visualizations
+
+- [Interactive Cuckoo](https://itu.dk/people/maau/teaching/visualisation/cuckoo-hashing/interactive.html)
+
+- [Cuckoo Hashing](https://itu.dk/people/maau/teaching/visualisation/cuckoo-hashing/index.html)
+
+- [Another Cuckoo Hashing visualization](https://www.lkozma.net/cuckoo_hashing_visualization/)
+
+---
+
+14. Claude Artifacts (Nov 16, 2024)
+
+- [Claude Artifacts](https://simonwillison.net/2024/Oct/21/claude-artifacts)
+
+- [Claude transcript for Extracting links from pasted HTML](https://gist.github.com/simonw/0a7d0ddeb0fdd63a844669475778ca06)
+
+---
+
+15. Accountability sinks (Nov 16, 2024)
+    [Nobody is responsible](https://aworkinglibrary.com/writing/accountability-sinks)
+
+---
+
+16. Understanding Round Robin DNS (Nov 16, 2024)
+    [Round robin DNS visualization](https://blog.hyperknot.com/p/understanding-round-robin-dns)
+
+---
+
+17. Art of attention (Nov 16, 2024)
+    [Concentration](https://billwear.github.io/art-of-attention.html)
+
+---
