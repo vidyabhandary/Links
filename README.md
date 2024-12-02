@@ -95,3 +95,11 @@
     [Concentration](https://billwear.github.io/art-of-attention.html)
 
 ---
+
+17. **Binary vector embeddings and Matryoshka embeddings** (Dec 02, 2024)
+    [Binary vector embeddings are so cool](https://emschwartz.me/binary-vector-embeddings-are-so-cool)
+
+---
+
+18. **Prioritizing sanity** (Dec 02, 2024)
+    [How We Built a Self-Healing System to Survive a Terrifying Concurrency Bug At Netflix](https://pushtoprod.substack.com/p/netflix-terrifying-concurrency-bug)
