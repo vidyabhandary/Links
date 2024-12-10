@@ -103,3 +103,8 @@
 
 18. **Prioritizing sanity** (Dec 02, 2024)
     [How We Built a Self-Healing System to Survive a Terrifying Concurrency Bug At Netflix](https://pushtoprod.substack.com/p/netflix-terrifying-concurrency-bug)
+
+---
+
+19. **Deletes are difficult** (Dec 10, 2024)
+    [Deletes are difficult](https://notso.boringsql.com/posts/deletes-are-difficult/)
