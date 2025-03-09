@@ -135,3 +135,15 @@
 8. Layout: The browser calculates the exact size and position of each element on the screen, based on CSS properties like margins, padding, and positioning (e.g., static, absolute).
 
 9. Painting: Using the Render Tree, the browser paints pixels onto the screen, filling in colors, images, borders, and shadows as defined by the CSS styles.
+
+---
+
+21. **NTP and PTP Explained** (March 09, 2025)
+    [How Computers Synchronize Their Clocks - NTP and PTP Explained](https://www.youtube.com/watch?v=WX5E8x3pYqg)
+
+22. **The Obscure System That Syncs All The World’s Clocks** (March 09, 2025)
+    [NTP - The Obscure System That Syncs All The World’s Clocks](https://www.youtube.com/watch?v=2D0v3j3UZ2A)
+
+23. **NTP vs PTP** (March 09, 2025) [NTP vs PTP](https://www.youtube.com/watch?v=lOUqOEkDT5I)
+
+---
