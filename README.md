@@ -147,3 +147,8 @@
 23. **NTP vs PTP** (March 09, 2025) [NTP vs PTP](https://www.youtube.com/watch?v=lOUqOEkDT5I)
 
 ---
+
+24. DNS resolution (June 10, 2025)
+[Let's Understand DNS For Real](https://www.danielfullstack.com/article/dns-does-not-have-to-be-hard)
+
+---
