@@ -152,3 +152,27 @@
 [Let's Understand DNS For Real](https://www.danielfullstack.com/article/dns-does-not-have-to-be-hard)
 
 ---
+
+25. Pirates of the RAG (July 19, 2025)
+[Pirates of the RAG: Adaptively Attacking LLMs to Leak Knowledge Bases](https://arxiv.org/abs/2412.18295)
+
+**"Oops ! I overshared !!!"** Looks like this problem is not unique to humans ! With strategic questioning, RAG based AI spills its secrets !
+
+26. [Refactor of a legacy service to reduce cloud spending](https://blog.duolingo.com/reducing-cloud-spending/) (July 19, 2025)
+
+I recently completed my 1.5-year streak on Duolingo (just 5 minutes a day—let’s call it dabbling rather than mastery 😅. Yes my Duolingo app icon is on fire !!!)
+
+It feels almost serendipitous to come across this article about how Duolingo slashed cloud costs. One jaw-dropping stat? After the refactor of a legacy service, they uncovered 2.1 billion unnecessary API calls… every single day! 😱
+
+27. [Concurrency Bug but a calm weekend](https://pushtoprod.substack.com/p/netflix-terrifying-concurrency-bug) (July 19, 2025)
+
+Unconventional technique for a peaceful weekend with a chaos-monkey type self-healing, pragmatic engineering on a Friday afternoon.
+
+How?
+
+- Resizing cluster to meet max capacity
+- Randomly kill a few instances every 15 minutes 
+
+Takeaway - Sometimes production incidents can be problem solved to align with quality of life.
+
+---
