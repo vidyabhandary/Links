@@ -175,4 +175,11 @@ How?
 
 Takeaway - Sometimes production incidents can be problem solved to align with quality of life.
 
+28. [HBR: How Generative AI will change Sales](https://hbr.org/2023/03/how-generative-ai-will-change-sales) (July 19, 2025)
+
+Of all the techno-functional terms I have across this one stands out as remarkably unconventional - "Boundary Spanner".
+
+A “boundary spanner”—an individual who understands and is respected by technical experts as well as by sales team members.
+Harvard Business Review
+
 ---
