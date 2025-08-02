@@ -1,53 +1,61 @@
 # Links
 
-1. **8 versions of UUID and when to use them** (August 25, 2024)
+## August 25, 2024
+
+1. **8 versions of UUID and when to use them** 
    [https://ntietz.com/blog/til-uses-for-the-different-uuid-versions](https://ntietz.com/blog/til-uses-for-the-different-uuid-versions)
 
    Key takeaway: UUIDs have 8 versions, each with specific use cases. V4 (random) and V7 (sortable) are most common.
 
 ---
 
-2. **Reverse Engineering TicketMaster's Rotating Barcodes (SafeTix)** (August 25, 2024)
+2. **Reverse Engineering TicketMaster's Rotating Barcodes (SafeTix)** 
    [https://conduition.io/coding/ticketmaster](https://conduition.io/coding/ticketmaster)
 
 ---
 
-3. **Database Caching** (August 31, 2024)
+## August 31, 2024
+
+3. **Database Caching** 
    [Database Caching](https://www.prisma.io/dataguide/managing-databases/introduction-database-caching)
 
 ---
 
-4. **SaaS Pricing Models** (September 13, 2024)
+## September 13, 2024
+
+4. **SaaS Pricing Models** 
    [SaaS Pricing Models](https://www.cobloom.com/blog/saas-pricing-models#)
 
 ---
 
-5. **One Minute Focus** (September 13, 2024)
+5. **One Minute Focus** 
    [One Minute Focus](https://oneminutefocus.com/)
 
 ---
 
-6. **B-trees and database indexes** (Oct 4, 2024)
+## Oct 4, 2024
+
+6. **B-trees and database indexes** 
    [B-trees and database indexes](https://planetscale.com/blog/btrees-and-database-indexes)
 
 ---
 
-7. **B+ tree visualiztion** (Oct 4, 2024)
+7. **B+ tree visualiztion** 
    [B+ tree visualiztion](https://bplustree.app/)
 
 ---
 
-8. **B tree visualiztion** (Oct 4, 2024)
+8. **B tree visualiztion** 
    [B tree visualiztion](https://btree.app/)
 
 ---
 
-9. **Bitten by Unicode** (Oct 4, 2024)
+9. **Bitten by Unicode** 
    [Bitten by Unicode](https://pyatl.dev/2024/09/01/bitten-by-unicode/)
 
 ---
 
-10. **Neuroscientist: How to LEARN ANYTHING Without Any Effort** (Oct 4, 2024)
+10. **Neuroscientist: How to LEARN ANYTHING Without Any Effort** 
     [Youtube - Some strategies for learning more effectively](https://www.youtube.com/watch?v=I2dm72OuK6M)
 
 **Key takeaways**
@@ -58,12 +66,14 @@
 
 ---
 
-11. **45 ways to break an API server** (Nov 16, 2024)
+## Nov 16, 2024
+
+11. **45 ways to break an API server** 
     [45 ways to break an API server(negative tests with examples)](https://dev.to/zvone187/45-ways-to-break-an-api-server-negative-tests-with-examples-4ok3)
 
 ---
 
-12. **Cuckoo hashing Visualizations** (Nov 16, 2024)
+12. **Cuckoo hashing Visualizations** 
 
 - [Interactive Cuckoo](https://itu.dk/people/maau/teaching/visualisation/cuckoo-hashing/interactive.html)
 
@@ -73,7 +83,7 @@
 
 ---
 
-13. **Claude Artifacts** (Nov 16, 2024)
+13. **Claude Artifacts** 
 
 - [Claude Artifacts](https://simonwillison.net/2024/Oct/21/claude-artifacts)
 
@@ -81,17 +91,17 @@
 
 ---
 
-14. **Accountability sinks** (Nov 16, 2024)
+14. **Accountability sinks** 
     [Nobody is responsible](https://aworkinglibrary.com/writing/accountability-sinks)
 
 ---
 
-15. **Understanding Round Robin DNS** (Nov 16, 2024)
+15. **Understanding Round Robin DNS** 
     [Round robin DNS visualization](https://blog.hyperknot.com/p/understanding-round-robin-dns)
 
 ---
 
-16. **Art of attention** (Nov 16, 2024)
+16. **Art of attention** 
     [Concentration](https://billwear.github.io/art-of-attention.html)
 
 ---
@@ -101,17 +111,23 @@
 
 ---
 
-18. **Prioritizing sanity** (Dec 02, 2024)
+## Dec 02, 2024
+
+18. **Prioritizing sanity** 
     [How We Built a Self-Healing System to Survive a Terrifying Concurrency Bug At Netflix](https://pushtoprod.substack.com/p/netflix-terrifying-concurrency-bug)
 
 ---
 
-19. **Deletes are difficult** (Dec 10, 2024)
+## Dec 10, 2024
+
+19. **Deletes are difficult** 
     [Deletes are difficult](https://notso.boringsql.com/posts/deletes-are-difficult/)
 
 ---
 
-20. **Browser Rendering Process** (Dec 15, 2024)
+## Dec 15, 2024
+
+20. **Browser Rendering Process** 
     [Insightful and detailed article on the browser rendering process](https://abhisaha.com/blog/exploring-browser-rendering-process/)
 
 ![Pictorial representation](https://raw.githubusercontent.com/vidyabhandary/Links/refs/heads/main/imgs/rendering.jpg)
@@ -138,33 +154,39 @@
 
 ---
 
-21. **NTP and PTP Explained** (March 09, 2025)
+## March 09, 2025
+
+21. **NTP and PTP Explained** 
     [How Computers Synchronize Their Clocks - NTP and PTP Explained](https://www.youtube.com/watch?v=WX5E8x3pYqg)
 
 22. **The Obscure System That Syncs All The World’s Clocks** (March 09, 2025)
-    [NTP - The Obscure System That Syncs All The World’s Clocks](https://www.youtube.com/watch?v=2D0v3j3UZ2A)
+    [NTP - The Obscure System That Syncs All The World’s Clocks](https://www.youtube.com/watch?v=CwZW0CO7F-g)
 
-23. **NTP vs PTP** (March 09, 2025) [NTP vs PTP](https://www.youtube.com/watch?v=lOUqOEkDT5I)
+23. **NTP vs PTP** [NTP vs PTP](https://www.youtube.com/watch?v=lOUqOEkDT5I)
 
 ---
 
-24. DNS resolution (June 10, 2025)
+## June 10, 2025
+
+24. DNS resolution 
 [Let's Understand DNS For Real](https://www.danielfullstack.com/article/dns-does-not-have-to-be-hard)
 
 ---
 
-25. Pirates of the RAG (July 19, 2025)
+## July 19, 2025
+
+25. Pirates of the RAG 
 [Pirates of the RAG: Adaptively Attacking LLMs to Leak Knowledge Bases](https://arxiv.org/abs/2412.18295)
 
 **"Oops ! I overshared !!!"** Looks like this problem is not unique to humans ! With strategic questioning, RAG based AI spills its secrets !
 
-26. [Refactor of a legacy service to reduce cloud spending](https://blog.duolingo.com/reducing-cloud-spending/) (July 19, 2025)
+26. [Refactor of a legacy service to reduce cloud spending](https://blog.duolingo.com/reducing-cloud-spending/) 
 
 I recently completed my 1.5-year streak on Duolingo (just 5 minutes a day—let’s call it dabbling rather than mastery 😅. Yes my Duolingo app icon is on fire !!!)
 
 It feels almost serendipitous to come across this article about how Duolingo slashed cloud costs. One jaw-dropping stat? After the refactor of a legacy service, they uncovered 2.1 billion unnecessary API calls… every single day! 😱
 
-27. [Concurrency Bug but a calm weekend](https://pushtoprod.substack.com/p/netflix-terrifying-concurrency-bug) (July 19, 2025)
+27. [Concurrency Bug but a calm weekend](https://pushtoprod.substack.com/p/netflix-terrifying-concurrency-bug) 
 
 Unconventional technique for a peaceful weekend with a chaos-monkey type self-healing, pragmatic engineering on a Friday afternoon.
 
@@ -175,7 +197,7 @@ How?
 
 Takeaway - Sometimes production incidents can be problem solved to align with quality of life.
 
-28. [HBR: How Generative AI will change Sales](https://hbr.org/2023/03/how-generative-ai-will-change-sales) (July 19, 2025)
+28. [HBR: How Generative AI will change Sales](https://hbr.org/2023/03/how-generative-ai-will-change-sales) 
 
 Of all the techno-functional terms I have across this one stands out as remarkably unconventional - "Boundary Spanner".
 
