@@ -205,3 +205,11 @@ A “boundary spanner”—an individual who understands and is respected by tec
 Harvard Business Review
 
 ---
+
+## Aug 30, 2025
+
+29. [Dependency Injection](https://www.youtube.com/watch?v=yunF2PgJlHU)
+
+30. [Good System Design](https://www.seangoedecke.com/good-system-design)
+
+31. [Good API Design](https://www.seangoedecke.com/good-api-design)
