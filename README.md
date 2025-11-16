@@ -219,3 +219,19 @@ Harvard Business Review
 ## Nov 16, 2025
 
 32. [GPT Hacks](https://www.aifire.co/p/4-secret-chatgpt-hacks-that-actually-cut-my-work-time-by-50)
+
+> 1. The "Magic" Step. "Great. Now, look back at our whole conversation. Write one single prompt that, if I used it at the beginning, would create this final perfect response in one go."
+
+> 2. Save and test your new prompt. 
+ChatGPT will now give you a "golden" prompt. It might look like this:
+Now, open a new chat, paste this "golden" prompt in, and watch what happens. It should create the perfect result immediately.
+
+> 3. The 'Other Side' Trick: First, you ask ChatGPT to create something for you. And this is the important part, you immediately ask it to "switch sides" and act as a tough critic.
+
+> 4. Flip the script
+Now is the time for magic. Ask ChatGPT to play the role of your toughest audience and "attack" it.
+
+> 5. The 'Blueprint' Trick: Plan Before You Build
+The 'Blueprint' trick solves this by forcing ChatGPT to explain its step-by-step reasoning before it gives the final result.
+It is like finalizing the blueprint (plan) of a house before actually building the house.
+
