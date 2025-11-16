@@ -213,3 +213,9 @@ Harvard Business Review
 30. [Good System Design](https://www.seangoedecke.com/good-system-design)
 
 31. [Good API Design](https://www.seangoedecke.com/good-api-design)
+
+---
+
+## Nov 16, 2025
+
+32. [GPT Hacks](https://www.aifire.co/p/4-secret-chatgpt-hacks-that-actually-cut-my-work-time-by-50)
