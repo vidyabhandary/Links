@@ -235,3 +235,54 @@ Now is the time for magic. Ask ChatGPT to play the role of your toughest audienc
 The 'Blueprint' trick solves this by forcing ChatGPT to explain its step-by-step reasoning before it gives the final result.
 It is like finalizing the blueprint (plan) of a house before actually building the house.
 
+---
+
+# Nov 28, 2025
+
+33. [Networks Explained](https://pub.towardsai.net/networking-explained-from-whats-network-to-ai-powered-networks-827a1bb83b7c)
+
+34. [Prepping for study using AI - Part 1](https://www.aifire.co/p/1-hour-of-this-ai-prep-will-save-you-100-hours-of-study-part-1)
+
+#### 1 - 
+> "I am a complete beginner who wants to learn [Topic: e.g., Video Editing with CapCut]. My specific goal is to [Goal: e.g., create a 1-minute travel vlog for TikTok with music and transitions]. Act as an expert researcher. Please search Reddit, specialized forums, and learner communities to find the '80/20' resources. I want to find the top 3 most recommended tutorials or free courses that teach the fundamentals quickly. For each recommendation, explain why people like it and list one negative thing about it."
+
+> Why this prompt works:
+
+> "Reddit and forums": It looks for real human discussions, not marketing blogs.
+
+> "80/20 resources": It asks for the 20% of materials that give 80% of the results.
+
+> "One negative thing": This helps you trust the result. No course is perfect.
+
+#### 2 - 
+> "I am about to study this document. I need you to create a 'Mental Map' for me. Please list the 5 most critical concepts I must understand to master this topic. For each concept, provide a simple 1-sentence definition. Also, list the 10 most common jargon words I will encounter. Do not give me long explanations yet. I just want the structure."
+
+#### 3 - 
+
+> "Based on the text I uploaded, create a 10-question multiple-choice quiz about the most important ideas. I want to test my knowledge before I start studying. Please provide the questions, but do not show me the answers until I ask for them."
+
+
+
+
+35. [Prepping for study using AI - Part 2](https://www.aifire.co/p/1-hour-of-this-ai-prep-will-save-you-100-hours-of-study-part-2)
+
+
+#### 1 - 
+> "I have pasted the transcript of a long video lecture below. Please rewrite this information as a structured textbook chapter. Use clear headings for each main topic. Use bullet points for key details. Bold the most important terms. Remove all the speaker's 'umms', 'ahhs', and off-topic jokes. Make it scannable so I can read it in 10 minutes."
+
+#### 2.
+
+The Power Of "Interleaving"
+Most people study like this:
+
+Monday: 3 hours of Spanish.
+
+Tuesday: 3 hours of Coding.
+
+This is boring and inefficient. Your brain gets numb doing the same thing for too long.
+
+Science suggests a method called Interleaving. This means mixing subjects.
+
+> Monday: 45 mins Spanish, then 45 mins Coding, then 30 mins Spanish.
+
+Why does this work? When you switch from Spanish to Coding, your brain has to "reset." It has to work hard to recall the Spanish words again when you switch back. This effort strengthens the memory. It also keeps you from getting bored.
