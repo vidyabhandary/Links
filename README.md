@@ -272,16 +272,16 @@ It is like finalizing the blueprint (plan) of a house before actually building t
 
 #### 2.
 
-The Power Of "Interleaving"
-Most people study like this:
+> The Power Of "Interleaving"
+> Most people study like this:
 
-Monday: 3 hours of Spanish.
+- Monday: 3 hours of Spanish.
 
-Tuesday: 3 hours of Coding.
+- Tuesday: 3 hours of Coding.
 
-This is boring and inefficient. Your brain gets numb doing the same thing for too long.
+> This is boring and inefficient. Your brain gets numb doing the same thing for too long.
 
-Science suggests a method called Interleaving. This means mixing subjects.
+> Science suggests a method called Interleaving. This means mixing subjects.
 
 > Monday: 45 mins Spanish, then 45 mins Coding, then 30 mins Spanish.
 
