@@ -286,3 +286,5 @@ It is like finalizing the blueprint (plan) of a house before actually building t
 > Monday: 45 mins Spanish, then 45 mins Coding, then 30 mins Spanish.
 
 Why does this work? When you switch from Spanish to Coding, your brain has to "reset." It has to work hard to recall the Spanish words again when you switch back. This effort strengthens the memory. It also keeps you from getting bored.
+
+36. [Fine-Tune an Open Source LLM with Claude Code/Codex (Hugging Face Model Trainer Skill)](https://www.youtube.com/watch?v=HGPTUc7tEq4)
