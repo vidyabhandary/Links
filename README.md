@@ -288,3 +288,5 @@ It is like finalizing the blueprint (plan) of a house before actually building t
 Why does this work? When you switch from Spanish to Coding, your brain has to "reset." It has to work hard to recall the Spanish words again when you switch back. This effort strengthens the memory. It also keeps you from getting bored.
 
 36. [Fine-Tune an Open Source LLM with Claude Code/Codex (Hugging Face Model Trainer Skill)](https://www.youtube.com/watch?v=HGPTUc7tEq4)
+
+37. [Using Coding Assistants - Beyond Vibe Coding](https://blog.tedivm.com/guides/2026/03/beyond-the-vibes-coding-assistants-and-agents/)
