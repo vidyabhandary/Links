@@ -291,6 +291,10 @@ Why does this work? When you switch from Spanish to Coding, your brain has to "r
 
 37. [Using Coding Assistants - Beyond Vibe Coding](https://blog.tedivm.com/guides/2026/03/beyond-the-vibes-coding-assistants-and-agents/)
 
+---
+
+# Mar 25, 2026
+
 38. [Parquet shrinks data 100x](https://blog.dataexpert.io/p/parquet-can-shrink-your-data-100x)
 
 39. [Context Engineering is a skill](https://pub.towardsai.net/context-engineering-is-a-skill-most-developers-are-skipping-it-9938678292b8)
