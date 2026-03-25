@@ -290,3 +290,19 @@ Why does this work? When you switch from Spanish to Coding, your brain has to "r
 36. [Fine-Tune an Open Source LLM with Claude Code/Codex (Hugging Face Model Trainer Skill)](https://www.youtube.com/watch?v=HGPTUc7tEq4)
 
 37. [Using Coding Assistants - Beyond Vibe Coding](https://blog.tedivm.com/guides/2026/03/beyond-the-vibes-coding-assistants-and-agents/)
+
+38. [Parquet shrinks data 100x](https://blog.dataexpert.io/p/parquet-can-shrink-your-data-100x)
+
+39. [Context Engineering is a skill](https://pub.towardsai.net/context-engineering-is-a-skill-most-developers-are-skipping-it-9938678292b8)
+
+Many github repos for skills
+
+40. [Anti-gravity Skills](https://github.com/sickn33/antigravity-awesome-skills/)
+
+41. [Architect Review Skill](https://github.com/sickn33/antigravity-awesome-skills/blob/main/skills/architect-review/SKILL.md)
+    
+42. [Avoid AI Writing](https://github.com/sickn33/antigravity-awesome-skills/blob/main/skills/avoid-ai-writing/SKILL.md)
+
+43. [Backend Architect](https://github.com/sickn33/antigravity-awesome-skills/blob/main/skills/backend-architect/SKILL.md)
+
+44. [Comprehensive Code Review](https://github.com/sickn33/antigravity-awesome-skills/blob/main/skills/comprehensive-review-full-review/SKILL.md)
