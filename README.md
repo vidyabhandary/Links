@@ -1,5 +1,10 @@
 # Links
 
+## Mar 27, 2026
+
+1. [Stanford CS221: Artificial Intelligence](https://www.youtube.com/playlist?list=PLoROMvodv4rMeDqwS1yFl3j3sR_-MQNEN)
+---
+
 ## March 25, 2026
 
 1. [Parquet shrinks data 100x](https://blog.dataexpert.io/p/parquet-can-shrink-your-data-100x)
