@@ -1,5 +1,10 @@
 # Links
 
+## Mar 31, 2026
+
+1. [The 15-File Setup That Turned Claude Code Into My Development Team](https://pub.towardsai.net/the-15-file-setup-that-turned-claude-code-into-my-development-team-04bc38da49de)
+
+---
 ## Mar 27, 2026
 
 1. [Stanford CS221: Artificial Intelligence](https://www.youtube.com/playlist?list=PLoROMvodv4rMeDqwS1yFl3j3sR_-MQNEN)
