@@ -1,5 +1,15 @@
 # Links
 
+## Apr 2, 2026
+
+1. [What Claude Code’s Source Leak Actually Reveals](https://medium.com/@marc.bara.iniesta/what-claude-codes-source-leak-actually-reveals-e571188ecb81)
+
+2. [The Claude Code Source Leak: fake tools, frustration regexes, undercover mode, and more](https://alex000kim.com/posts/2026-03-31-claude-code-source-leak/)
+
+3. [Python rewrite](https://github.com/ultraworkers/claw-code)
+
+---
+
 ## Mar 31, 2026
 
 1. [The 15-File Setup That Turned Claude Code Into My Development Team](https://pub.towardsai.net/the-15-file-setup-that-turned-claude-code-into-my-development-team-04bc38da49de)
