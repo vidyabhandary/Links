@@ -1,5 +1,15 @@
 # Links
 
+## Apr 15, 2026
+
+1. [How Roblox Uses AI to Translate 16 Languages in 100 Milliseconds](https://blog.bytebytego.com/p/how-roblox-uses-ai-to-translate-16)
+Some learnings
+
+- Mixture of Experts
+- Knowledge Distillation
+- Iterative backtranslation
+- Embedding cache between encoder and decoder
+
 ## Apr 2, 2026
 
 1. [What Claude Code’s Source Leak Actually Reveals](https://medium.com/@marc.bara.iniesta/what-claude-codes-source-leak-actually-reveals-e571188ecb81)
