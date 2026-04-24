@@ -6,7 +6,7 @@
 Some learnings
 
 - Mixture of Experts
-- Knowledge Distillation
+- Knowledge Distillation (sometimes described as a teacher-student approach)
 - Iterative backtranslation
 - Embedding cache between encoder and decoder
 
