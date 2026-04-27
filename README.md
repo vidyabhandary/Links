@@ -1,5 +1,25 @@
 # Links
 
+## Apr 27, 2026
+
+1. [LLM Parameters Cheatsheet](https://pub.towardsai.net/the-complete-llm-parameters-cheatsheet-2026-5ae47bb14ef3)
+
+
+Different parameter settings for
+- RAG / Factual Q&A with citations
+- Classification (e.g., intent, sentiment, safety)
+- JSON / structured extraction from messy text
+- SQL generation
+- Code generation
+- Chatbot / customer support
+- Creative writing (stories, poems, marketing copy)
+- Brainstorming / ideation
+- Summarization (factual, extractive)
+- Translation
+- Agent / tool-use loop
+- Reasoning / math / hard problems
+- Production pitfalls (and how to avoid them)
+
 ## Apr 15, 2026
 
 1. [How Roblox Uses AI to Translate 16 Languages in 100 Milliseconds](https://blog.bytebytego.com/p/how-roblox-uses-ai-to-translate-16)
