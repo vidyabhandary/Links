@@ -1,5 +1,30 @@
 # Links
 
+## Apr 28, 2026
+
+1. [How Stripe Detects Fraudulent Transactions Within 100 ms](https://blog.bytebytego.com/p/how-stripe-detects-fraudulent-transactions)
+
+- The earlier XGBoost and DNN were good in Radar
+But could not use transfer learning and took too long to experiment
+- The core idea, sometimes called “Network-in-Neuron,” splits computation into multiple distinct branches, where each branch functions as a small neural network on its own. 
+- Usage of embeddings - Embeddings enable geographic transfer of fraud knowledge
+- Precision vs Recall for different businesses
+- Explanability - The explanation layer transforms Radar from a black box into something merchants can actively collaborate with
+- Moving to Production - A model that performs better on aggregate metrics might still cause a spike in block rate for smaller businesses, which would be disruptive for those merchants and their customers. Before releasing any model, Stripe measures the change it would cause to the false positive rate, block rate, and authorization rate on both an aggregate and per-merchant basis. If a model would cause undesirable shifts for certain users, they adjust it for those segments before release
+  
+2. [How I Built ML-Powered LLM Routing with <5ms Latency](https://pub.towardsai.net/how-i-built-ml-powered-llm-routing-with-5ms-latency-e81476a47231)
+
+Manually deciding which local LLM to use.
+
+Coding question? Load Qwen. Math problem? Switch to a reasoning model. General question? Back to something smaller and faster. Every switch meant waiting 30–60 seconds for the model to load into VRAM. It was exhausting.
+
+So I built a router that does it automatically — classifies every query in under 5ms and routes it to the optimal model based on benchmark scores, historical performance, and user feedback.
+
+The git link
+https://github.com/al1-nasir/LocalForge.git
+
+3. [Architecture code review using document chunks and Github PR](https://pub.towardsai.net/how-i-automated-architecture-code-reviews-using-agentic-ai-and-github-actions-e8f349679d81)
+
 ## Apr 27, 2026
 
 1. [LLM Parameters Cheatsheet](https://pub.towardsai.net/the-complete-llm-parameters-cheatsheet-2026-5ae47bb14ef3)
