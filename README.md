@@ -1,5 +1,10 @@
 # Links
 
+## Apr 30, 2026
+
+1. [RAG Approaches](hhttps://pub.towardsai.net/10-practical-rag-approaches-what-is-actually-useful-and-when-to-use-each-one-fde0d313487f)
+
+
 ## Apr 28, 2026
 
 1. [How Stripe Detects Fraudulent Transactions Within 100 ms](https://blog.bytebytego.com/p/how-stripe-detects-fraudulent-transactions)
