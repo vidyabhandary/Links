@@ -1,5 +1,24 @@
 # Links
 
+## May 11, 2026
+
+1. [Winning a Kaggle Competition with Generative AI–Assisted Coding](https://developer.nvidia.com/blog/winning-a-kaggle-competition-with-generative-ai-assisted-coding/)
+
+NVIDIA’s article describes how **three LLM agents** helped win a Kaggle churn-prediction competition by generating **600K+ lines of code** and supporting **850 experiments**. 
+- The technical workflow used **EDA → k-fold baselines → feature engineering/model tuning → ensemble stacking**.
+- Execution speed came from GPU-accelerated tools such as **NVIDIA cuDF, cuML, XGBoost, and PyTorch**. 
+- Each experiment saved **OOF predictions** and **test predictions** as `.npy` files, enabling later stacking, hill climbing, and meta-modeling.
+- The final winning model was a **four-level stacked ensemble of 150 models selected from 850 experiments**. 
+
+## Key technical points
+
+* **LLM agents used:** GPT-5.4 Pro, Gemini 3.1 Pro, and Claude Opus 4.6. 
+* **Task:** Binary classification for telecom customer churn; metric was **AUC**.
+* **Modeling approach:** k-fold pipelines using models like **XGBoost, GBDT, neural networks, and other ML models**.
+* **Prediction artifacts:** Saved as `train_oof_[MODEL]_[VERSION].npy` and `test_preds_[MODEL]_[VERSION].npy`.
+* **Advanced techniques:** **Feature engineering, model tuning, pseudo-labeling, knowledge distillation, hill climbing, and stacking**.
+* **Main technical takeaway:** LLMs accelerated code generation, while GPUs accelerated experiment execution; the advantage came from shortening the full ML experimentation loop.
+
 ## May 06, 2026
 
 1. [Awesome Codex Skills](https://github.com/ComposioHQ/awesome-codex-skills/tree/master)
