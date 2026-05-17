@@ -1,5 +1,33 @@
 # Links
 
+## May 17, 2026
+
+1. [TED Talsk - Secrets of elite athletes](https://www.youtube.com/watch?v=KI3WJXNhCJ8)
+
+The two foundational pillars of this mindset that anyone can apply to their professional and personal life are:
+
+### 1. Advanced Visualization
+
+Elite athletes don't just look at a future goal; they "time travel" by using all of their senses—seeing, hearing, touching, and feeling emotions—to establish a future reality.
+
+* **The Neuroscience:** Visualizing an action activates the exact same parts of the brain as actually physically performing it.
+* **Application:** You can use this blueprint for success to mentally rehearse high-stakes situations, such as structuring and presenting a flawless professional pitch, executing a key interview, or working toward physical health transformations.
+
+### 2. Deliberate Practice
+
+True confidence is built by specific, structured hard work rather than innate gifts.
+
+* **Focus on Fundamentals:** Base your training on the core rules and primary mechanics of your skill rather than just repeating the endpoint action.
+* **Rigorous Repetition:** Commit to continuous, focused repetition to build standard excellence.
+* **Stretch Beyond Comfort:** Force yourself out of your comfort zone by setting objectives just slightly past your current level of competence.
+* **Seek Active Feedback:** You cannot grow in isolation; rely on external coaches, mentors, or advisors to highlight blind spots and guide improvement.
+
+### The Philosophy on Failure
+
+For elite performers, achievement is a continuous process of progression rather than a final destination. Winning is simply used as a benchmark to measure growth, meaning **failure is never fatal; it is merely an indicator to adjust your approach**.
+
+You will never truly know your upper limits unless you actively push the boundaries of your current capabilities.
+
 ## May 11, 2026
 
 1. [Winning a Kaggle Competition with Generative AI–Assisted Coding](https://developer.nvidia.com/blog/winning-a-kaggle-competition-with-generative-ai-assisted-coding/)
