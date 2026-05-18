@@ -1,5 +1,17 @@
 # Links
 
+## May 18, 2026
+
+1. [git fetch vs git pull vs git pull —rebase](https://blog.bytebytego.com/p/ep215-the-anatomy-of-an-ai-agent)
+
+git fetch downloads remote changes and updates origin/main. Your local main does not move. Nothing in your working directory changes. That makes fetch the safest option when you want to inspect what changed upstream before integrating anything.
+
+git pull goes one step further. It fetches first and then merges the upstream branch into your current branch. Your local commits stay intact, and Git adds a merge commit to connect the two histories.
+
+git pull —rebase is the clean one. It starts with a fetch, but instead of merging, it reapplies your local commits on top of the updated upstream branch. The result is a linear history with no merge commit.
+
+Fetch when you just want to see what's on the remote before deciding anything. Pull when you're on your own branch and don't mind merge commits showing up in the log. Rebase when you're cleaning up a feature branch before opening a PR and want the history to read cleanly.
+
 ## May 17, 2026
 
 1. [TED Talsk - Secrets of elite athletes](https://www.youtube.com/watch?v=KI3WJXNhCJ8)
