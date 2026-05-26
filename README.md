@@ -1,5 +1,33 @@
 # Links
 
+## May 26, 2026
+
+1. [How Netflix is Using Multimodal AI to Power Video Search](https://blog.bytebytego.com/p/how-netflix-is-using-multimodal-ai)
+
+- Specialized models consistently outperform generalists at their particular task. Therefore, Netflix runs an ensemble of specialists
+
+- The engineering team had to solve one core challenge.
+
+How do you take all these different outputs, produced at different time resolutions, in different formats, and merge them into one searchable index?
+
+-  Each stage handles one concern and one concern only
+
+-  Offline Data Fusion and Temporal Bucketing (1 second each)
+This offline fusion layer is the architectural heart of the system. It handles the heavy computational work outside the real-time path, so complex data intersections never interfere with ongoing ingestion
+
+-  Hybrid Search
+A query like “Joey in the kitchen” requires two fundamentally different kinds of matching.
+
+“Joey” is a proper noun that demands exact keyword matching. “Kitchen” is a semantic concept that benefits from vector similarity search, where the system compares the mathematical distance between the query embedding and scene embeddings stored in the index.
+
+A keyword search alone would miss scenes labeled with related terms. Also, vector search alone would struggle with proper nouns and exact phrases. The combination of both is called hybrid search, and it consistently outperforms either approach in isolation.
+
+-  Search-as-you-type functionality, powered by indexing partial word fragments at ingest time, surfaces frame-accurate results the moment an editor begins typing.
+
+Linguistic stemming across multiple languages ensures that “running” matches scenes tagged with “run” or “ran,” collapsing grammatical variations into a single search intent. Fuzzy matching that tolerates character-level typos and misspellings accounts for transcription errors, so that high-value shots are never lost to minor data imperfections.
+
+- The system uses custom aggregations to cluster outputs, such as isolating the top 5 most relevant clips of an actor per episode.
+
 ## May 18, 2026
 
 1. [git fetch vs git pull vs git pull —rebase](https://blog.bytebytego.com/p/ep215-the-anatomy-of-an-ai-agent)
