@@ -1,5 +1,11 @@
 # Links
 
+## June 30, 2026
+
+1. [Emerging Security Practices for AI Agents](https://www.frontiermodelforum.org/issue-briefs/emerging-security-practices-for-ai-agents/)
+
+![](https://raw.githubusercontent.com/vidyabhandary/Links/refs/heads/main/imgs/SecurityPractices%20for%20AI%20Agents.png)
+
 ## May 26, 2026
 
 1. [How Netflix is Using Multimodal AI to Power Video Search](https://blog.bytebytego.com/p/how-netflix-is-using-multimodal-ai)
