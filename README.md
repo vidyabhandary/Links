@@ -1,5 +1,42 @@
 # Links
 
+## July 1, 2026
+
+1. [RAG vs Graph RAG vs Agentic RAG](https://blog.bytebytego.com/p/ep220-rag-vs-graph-rag-vs-agentic)
+RAG connects LLMs to your data and there are three different ways to do it.
+
+### Standard RAG
+
+- The query is converted into an embedding and matched against a vector database.
+
+- The top-K closest chunks are pulled out and passed to the LLM as context.
+
+- The LLM writes a grounded answer using only what was retrieved.
+
+### Graph RAG
+
+- The query is classified: specific questions route to local search, broad questions route to global search.
+
+- Local search: query embedded → vector DB finds matching entities → pipeline traverses across the knowledge graph collecting linked context → LLM synthesis final answer.
+
+- Global search: no vector search, no graph traversal → community reports loaded in batches → LLM scores each for relevance → top-ranked context → LLM synthesizes final response.
+
+### Agentic RAG
+
+- A reasoning agent reads the query, breaks it into sub-questions and picks the sources.
+
+- The context across multiple sources is retrieved, depending on the sub-query.
+
+- Another agent checks whether the retrieved context answers the question. If not, it re-retrieves.
+
+- Once satisfied, the final answer is synthesized by LLM based on the prompt.
+
+- Standard RAG is fast and cheap but if the wrong chunk is retrieved, the answer is wrong and nothing catches it.Use it when the answer lives in your documents and speed matters.
+
+- Graph RAG is expensive to build and slow to update. Use it for structured knowledge like legal, compliance, or biomedical data.
+
+- Agentic RAG is more capable and flexible but slower, expensive, and harder to debug. Use it when the question needs multi-step reasoning and self-correction.
+
 ## June 30, 2026
 
 1. [Emerging Security Practices for AI Agents](https://www.frontiermodelforum.org/issue-briefs/emerging-security-practices-for-ai-agents/)
