@@ -1,5 +1,63 @@
 # Links
 
+## July 14, 2026
+
+1. [RAG at 10 Million Documents](https://www.youtube.com/watch?v=NQZqET-jjws)
+
+![RAG at 10 million documents](https://raw.githubusercontent.com/vidyabhandary/Links/refs/heads/main/imgs/RAG_10millionDocs.png)
+
+The video [RAG at 10 Million Documents — System Design](http://www.youtube.com/watch?v=NQZqET-jjws) on the channel *Code with Lucian* details what happens when a **RAG (Retrieval-Augmented Generation)** system scales from a simple "lemonade stand" (1,000 documents running on a laptop) to an "air traffic control tower" (10 million production-grade messy documents).
+
+The entire system design is divided into three critical, scale-busting pillars:
+
+---
+
+## Pillar 1: Ingestion — "Garbage In, Garbage Out"
+
+At scale, you aren't dealing with clean PDFs, but with messy spreadsheets, scanned contracts, and Slack exports. Handling this requires specialized tools and strategies [[12:11](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D731)]:
+
+* **Format Normalization:** You cannot write custom parsers for every format.
+* **Apache Tika:** acts as the "universal translator" to extract raw text and metadata [[02:19](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D139)].
+* **Unstructured:** partitions document structures (differentiating headings, footnotes, and lists) [[02:50](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D170)].
+* **Dockling:** specializes in layout understanding, reading order, and table recovery for scanned PDFs [[03:08](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D188)].
+
+
+* **Semantic Chunking:** Simply splitting text every 512 characters destroys meaning (e.g., cutting a table in half leaves you with numbers devoid of context) [[03:30](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D210)].
+* Keep tables atomic by serializing them to Markdown [[03:52](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D232)].
+* Use **Llama Index’s hierarchical or sentence window parsers** to keep sentence/paragraph boundaries intact and carry section "breadcrumbs" (headings) along with smaller chunks [[04:08](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D248)].
+* *Rule of thumb:* Chunk size is just a metric; **semantic completeness** is what actually matters [[04:23](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D263)].
+
+
+* **Metadata Enrichment:** In a pool of 10 million documents, things begin to look similar. Precomputing metadata (summaries, keywords, hypothetical questions) using tools like **Llama Index's metadata extractors** is mandatory for hard filtering later [[05:01](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D301)].
+
+---
+
+## Pillar 2: Storage & Retrieval — The Filtering Funnel
+
+At scale, retrieval isn't a single lookup. It's a progressive funnel designed to optimize speed, accuracy, and security [[08:55](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D535)]:
+
+* **Step 1: SQL Relational Filtering (Hard Constraints):** Before doing any AI-based search, use a standard relational database to filter by hard permissions, dates, or departments (e.g., "only show HR documents from 2024"). This narrows 10 million candidates down to a few thousand instantly [[08:00](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D480)].
+* **Step 2: Hybrid Search (Dense + Sparse):**
+* **Vector Search (HNSW Graphs):** Great for conceptual meaning, but trades tiny accuracy drops for massive speed at scale [[06:28](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D388)]. It is terrible at exact strings (like error codes, usernames, or part numbers) [[06:53](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D413)].
+* **Keyword Search (BM25):** Runs side-by-side with vector search to find exact token matches [[07:25](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D445)].
+* **Fusing:** Platforms like Elasticsearch or OpenSearch merge these together to give you both "a poet’s intuition and a librarian's precision" [[07:43](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D463)].
+
+
+* **Step 3: Reranking:** Take the top ~100 candidate documents and run them through a heavy cross-encoder model (like **Cohere Rerank**) to evaluate the exact relationship between the user's query and the text chunks. It catches subtle relevance gaps that raw vector math misses [[08:24](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D504)].
+
+---
+
+## Pillar 3: Routing, Agents, & Safety
+
+Once your data is retrieved, a central orchestrator acts as the "brain" [[09:24](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D564)]:
+
+* **The Conditional Router:** Criminally underrated. It asks: *"Does this query even need a database lookup?"* [[10:08](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D608)] If a user asks a simple math question, route it to a calculator tool instead of spinning up expensive embedding pipelines [[10:31](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D631)].
+* **Multi-Agent Coordination:** For complex queries, use frameworks like **Langraph** or **Crew AI** to orchestrate specialists working in parallel (e.g., Researcher, Analyzer, Risk Flagger) rather than relying on one overworked intern LLM [[10:50](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D650)].
+* **Human-in-the-Loop:** Establish risk tiering. Low-risk actions can run on autopilot, but high-risk actions (wiring money, deleting records, sending legal commitments) must go through a human approval step and an immutable audit trail [[11:50](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D710)].
+* **Red Teaming & Security:** Prompt injections (hiding "ignore previous instructions" in documents) and information evasion are highly common. Run guardrails like **NVIDIA NeMo Guardrails**, **Garak**, or **Lera** to actively attack your reasoning engine before malicious actors do [[12:30](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D750)].
+* **Continuous Evaluation:** Track metrics using automated LLM-judges (**Ragas, TruLens, DeepEval**) [[13:46](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D826)]. Track *faithfulness* (is it hallucinating?), *precision/recall* (did we fetch the right chunks?), and *latency/cost*—because a flawless answer that takes 40 seconds and costs $2 per query is a business failure [[13:15](https://www.google.com/search?q=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNQZqET-jjws%26t%3D795)].
+
+
 ## July 1, 2026
 
 1. [RAG vs Graph RAG vs Agentic RAG](https://blog.bytebytego.com/p/ep220-rag-vs-graph-rag-vs-agentic)
