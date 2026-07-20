@@ -1,5 +1,93 @@
 # Links
 
+## July 20, 2026
+
+1. [Proof Of Human](https://blog.bytebytego.com/p/proof-of-human-how-to-verify-a-person)
+
+#### 1. Proof of human requires **one-to-many biometric matching**
+
+Face ID performs a **1:1 comparison** against the template stored on your phone. Proof of human must perform a **1:N comparison** against everyone already enrolled.
+
+At one billion enrolled users, a biometric with a false-match rate of 1 in 1 million could generate roughly **1,000 false matches for one person**. The required accuracy is therefore closer to **1 in 100 billion**, which rules out most consumer biometrics. ([ByteByteGo Blog][1])
+
+#### 2. The **iris** is used because it has enough entropy
+
+Faces do not vary sufficiently for billion-scale uniqueness, and fingerprints can be copied from surfaces. Iris patterns provide much greater distinguishing information, making them suitable for determining whether someone has already registered.
+
+The iris alone is not enough—the capture process must also prevent photographs, injected camera feeds, masks, and artificial eyes. ([ByteByteGo Blog][1])
+
+#### 3. The **Orb** creates a trusted capture pipeline
+
+The Orb is purpose-built hardware that:
+
+* captures the eye using infrared and visible wavelengths;
+* runs local neural networks for liveness and mask detection;
+* controls the complete path from camera sensor to processing;
+* deletes the original eye images;
+* transmits only signed, encrypted data derived from the iris.
+
+
+This matters because software-based verification cannot be trusted when attackers can replace or manipulate the camera feed. ([ByteByteGo Blog][1])
+
+
+#### 4. **SMPC** checks uniqueness without exposing the biometric
+
+The iris-derived value is split into **three statistically random secret shares**. Each share is given to an independent organization operating in a different legal jurisdiction.
+
+Individually, each share reveals nothing. The organizations jointly determine whether the iris matches an existing enrolment without reconstructing the complete iris value on any machine.
+
+This is **Secure Multi-Party Computation**, specifically World’s **Anonymized Multi-Party Computation (AMPC)**. The participating organizations operate the **SMPC nodes**. ([ByteByteGo Blog][1])
+
+#### 5. The credential is a persistent account, not one phone key
+
+Each verified human has an entry in the on-chain **WorldIDRegistry**. It does not contain the person’s biometric. It contains authorized public keys called **Authenticators**.
+
+Authenticators may be:
+
+* a phone wallet;
+* a browser extension;
+* a hardware security token.
+
+Keys can be added, rotated, or revoked while the verified-human account remains intact. ([ByteByteGo Blog][1])
+
+#### 6. Recovery is handled through **Recovery Agents**
+
+When a phone is stolen, a Recovery Agent can reverify the person—currently through the Orb network and mobile face authentication—then revoke the stolen phone’s key and register the replacement phone.
+
+This avoids forcing the user to create a new identity, but makes Recovery Agents an important governance and trust point. ([ByteByteGo Blog][1])
+
+#### 7. **Nullifiers** enforce one-person-one-action privately
+
+A nullifier is derived from:
+
+> verified credential + service identifier + specific action
+
+The same human performing the same action for the same service generates the same nullifier. A shoe retailer can therefore detect a second purchase by the same person.
+
+For another retailer or another action, the nullifier is completely different, preventing cross-service tracking. ([ByteByteGo Blog][1])
+
+#### 8. **OPRF nodes** generate nullifiers without learning their meaning
+
+The user sends a blinded query to a distributed set of **Oblivious Pseudorandom Function nodes**. The nodes calculate over the blinded value, a threshold of them must cooperate, and the user unblinds the result.
+
+Used nullifiers are recorded in the on-chain **Oblivious Nullifier Pool**. Two zero-knowledge proofs demonstrate that the user is verified and that the nullifier was generated correctly. Applications access this flow through **IDKit**. ([ByteByteGo Blog][1])
+
+#### 9. AI agents are linked to humans through **AgentBook**
+
+An AI agent registers its wallet address in **AgentBook** on World Chain and privately links itself to a human’s World ID.
+
+Applications integrate **AgentKit** to verify that an agent is backed by a unique human. The agent’s usage counts against that human’s allowance; the current default is **three uses per human per service** before payment applies.
+
+This enables legitimate agents to buy products, book flights, or submit forms without allowing one person to create thousands of agents for free-trial or limited-inventory abuse. ([ByteByteGo Blog][1])
+
+#### The architectural flow
+
+**Iris → Orb capture and liveness → three secret shares → SMPC uniqueness check → WorldIDRegistry account → Authenticator keys → OPRF-generated nullifier → zero-knowledge proof through IDKit → optional agent delegation through AgentBook/AgentKit**
+
+The important insight is that proof of human is not simply biometric authentication. It combines **high-entropy iris matching, trusted hardware, secret-shared biometrics, SMPC, recoverable account credentials, scoped nullifiers, OPRFs, zero-knowledge proofs, and human-backed agent delegation**.
+
+[1]: https://blog.bytebytego.com/p/proof-of-human-how-to-verify-a-person "Proof of Human: How to Verify a Person Is Real and Unique"
+
 ## July 14, 2026
 
 1. [RAG at 10 Million Documents](https://www.youtube.com/watch?v=NQZqET-jjws)
