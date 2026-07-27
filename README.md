@@ -1,5 +1,52 @@
 # Links
 
+## July 27, 2026
+
+1. [How Microsoft Ships AI](https://blog.bytebytego.com/p/how-microsoft-ships-ai-agents-at)
+
+Key points
+1.	The model is only one part of a production agent.
+Most failures come from the surrounding agent harness—runtime, tools, context retrieval, identity, guardrails, observability, evaluation, and deployment—not necessarily from the LLM itself. Model changes may require the harness to be retuned and re-evaluated. 
+2.	Agents create greater risk than chatbots.
+A chatbot giving a wrong answer is a quality issue; an agent sending an email, booking something, issuing a refund, or updating a system incorrectly can become a business or compliance incident. 
+3.	Microsoft describes five major harness layers:
+o	Inference: a common interface allowing models to be swapped.
+o	Runtime: orchestration, state management, and tool execution.
+o	Observability and governance: health, cost, latency, drift, and fleet-level monitoring.
+o	Identity: agents receive their own permissions and audit trails.
+o	Context: obtaining the correct enterprise information needed for the task. 
+4.	Not every operation should use an LLM.
+Deterministic work such as database lookups, validation, extraction, and calculations should generally remain conventional code because it is faster, cheaper, and more reliable. 
+5.	Traditional one-shot RAG is insufficient for complex enterprise use cases.
+A single query against one index cannot reliably handle ambiguous questions, multiple data sources, empty results, or answers requiring information from several systems. ByteByteGo Blog)
+6.	Retrieval should operate like a subagent.
+Microsoft’s proposed pattern is an iterative loop that:
+-	Plans which sources to search.
+-	Executes queries.
+-	Evaluates the results.
+-	Refines the query or tries another source.
+-	Combines evidence.
+-	Returns a structured “I don’t know” when retrieval fails rather than forcing an answer. (ByteByteGo Blog)
+7.	Context is separated by data type.
+Microsoft presents multiple “IQ” services for unstructured enterprise content, structured data, live web information, and Microsoft 365 productivity data. Agents access these capabilities through MCP-style interfaces. (ByteByteGo Blog)
+8.	Tool discovery should also be dynamic.
+Instead of placing dozens of tool descriptions in every prompt, the agent should search for the appropriate tool when needed. This saves context and reduces tool-selection complexity. (ByteByteGo Blog)
+9.	Agents need their own enterprise identities.
+Production agents should not operate through a shared service account or invisibly borrow a user’s identity. They should have defined roles, least-privilege access, named ownership, and auditable actions—similar to employees or service principals. 
+10.	Guardrails must extend to tool boundaries.
+Screening only user prompts and model responses is inadequate. Retrieved documents and tool outputs may contain malicious instructions, so controls must also inspect tool inputs and outputs to defend against indirect prompt injection. 
+11.	Evaluation must continue after deployment.
+Agent behaviour can change because models, data, traffic patterns, and user requests change. Evaluation should therefore run both as a deployment gate and continuously against sampled production interactions. 
+12.	Use-case-specific rubrics are more useful than generic metrics.
+Metrics such as groundedness and coherence are insufficient on their own. Teams should evaluate expected behaviours—for example, whether the agent asks for missing information, verifies availability before acting, and confirms the completed action. 
+13.	Agent optimisation can become an automated loop.
+Failed rubric scores can be used to generate and test alternative prompts, models, tool strategies, skills, or retrieval priorities. Multiple candidates can be evaluated, with the best-performing version promoted. 
+
+Central takeaway
+A production agent should be engineered as a governed software system, not treated as an LLM wrapped in a prompt.
+The most reusable architectural ideas are agentic, retry-capable retrieval; independent agent identity; tool-boundary guardrails; fleet-wide observability; and continuous rubric-based evaluation. 
+
+
 ## July 20, 2026
 
 1. [Proof Of Human](https://blog.bytebytego.com/p/proof-of-human-how-to-verify-a-person)
