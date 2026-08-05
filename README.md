@@ -10,11 +10,11 @@ Most failures come from the surrounding agent harness—runtime, tools, context 
 2.	Agents create greater risk than chatbots.
 A chatbot giving a wrong answer is a quality issue; an agent sending an email, booking something, issuing a refund, or updating a system incorrectly can become a business or compliance incident. 
 3.	Microsoft describes five major harness layers:
-o	Inference: a common interface allowing models to be swapped.
-o	Runtime: orchestration, state management, and tool execution.
-o	Observability and governance: health, cost, latency, drift, and fleet-level monitoring.
-o	Identity: agents receive their own permissions and audit trails.
-o	Context: obtaining the correct enterprise information needed for the task. 
+-	Inference: a common interface allowing models to be swapped.
+-	Runtime: orchestration, state management, and tool execution.
+-	Observability and governance: health, cost, latency, drift, and fleet-level monitoring.
+-	Identity: agents receive their own permissions and audit trails.
+-	Context: obtaining the correct enterprise information needed for the task. 
 4.	Not every operation should use an LLM.
 Deterministic work such as database lookups, validation, extraction, and calculations should generally remain conventional code because it is faster, cheaper, and more reliable. 
 5.	Traditional one-shot RAG is insufficient for complex enterprise use cases.
