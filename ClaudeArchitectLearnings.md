@@ -1,5 +1,283 @@
 # Some learnings for Claude Architect 
 
+## Aug 05, 2026
+
+Today’s lesson completes the MCP foundation by connecting **transport choice** to deployment topology, security and operability.
+
+# Week 3, Session 13 — MCP Transport Choice: Local `stdio` or Remote Streamable HTTP?
+
+## 1. Level
+
+**Foundation**
+
+---
+
+## 2. Today’s concept
+
+An MCP transport determines **how an MCP client and server exchange protocol messages**.
+
+It does not change what a tool, resource or prompt means. The same MCP capabilities can theoretically be exposed over different transports; the transport controls matters such as:
+
+* where the server runs;
+* how messages are delivered;
+* who manages the server process;
+* how access is authenticated;
+* how failures and cancellation are handled.
+
+The current MCP specification defines two standard transports:
+
+| Transport           | Basic deployment model                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **`stdio`**         | The client launches a local MCP server as a subprocess and communicates through standard input and output. |
+| **Streamable HTTP** | The MCP server runs as an independent network service and receives requests at an HTTP endpoint.           |
+
+MCP describes the transport as a **binding**: it carries JSON-RPC messages but does not redefine their meaning. ([Model Context Protocol][1])
+
+### `stdio`: local and client-managed
+
+With `stdio`, the MCP client starts the server process.
+
+The client writes MCP messages to the server’s standard input, and the server writes valid MCP messages to standard output. The server process usually exists for the lifetime of that client connection. ([Model Context Protocol][2])
+
+This is often appropriate when:
+
+* the capability runs on the user’s computer;
+* it needs access to local files or development tools;
+* only one host needs that process;
+* the host should control startup and shutdown;
+* opening a network endpoint would add no value.
+
+Typical examples include local source-code tools, filesystem access, desktop automation and developer utilities.
+
+### Streamable HTTP: remote and independently operated
+
+With Streamable HTTP, the MCP server runs independently from the client. It exposes an HTTP endpoint that can receive requests from authorised clients.
+
+Under the current specification, each request is sent using HTTP POST. The response may be a single JSON object or a request-scoped Server-Sent Events stream when incremental messages are needed. ([Model Context Protocol][3])
+
+This is often appropriate when:
+
+* the capability is hosted centrally;
+* many users or MCP hosts must share it;
+* the service needs independent deployment and scaling;
+* access must be managed using network-level identity and authorisation;
+* central monitoring, gateways or rate limits are required.
+
+Typical examples include enterprise CRM access, centrally governed knowledge services, production ticketing systems and shared compliance platforms.
+
+The core rule is:
+
+> **Choose the transport from the deployment and trust boundary—not from the tool’s business name.**
+
+---
+
+### Current protocol update
+
+The latest MCP specification is dated **July 28, 2026**.
+
+In this version, the protocol core is stateless and Streamable HTTP no longer uses the older protocol-level session model or the previous GET stream endpoint. The older **HTTP+SSE transport** is deprecated; new implementations should use Streamable HTTP rather than adopting HTTP+SSE. ([Model Context Protocol][3])
+
+Older tutorials may therefore show connection flows that do not match the current protocol.
+
+---
+
+## 3. Why an architect cares
+
+Transport selection affects far more than connectivity.
+
+### Security boundary
+
+A local `stdio` server avoids exposing an MCP endpoint over the network. However, that does not automatically make it safe.
+
+A local server may execute with the same operating-system privileges as its host and could access sensitive files, credentials or commands. Official MCP security guidance recommends sandboxing local servers, granting minimal privileges and making additional access explicit. It specifically identifies `stdio` as a way for a local server to limit access to the launching MCP client. ([Model Context Protocol][4])
+
+A remote HTTP server introduces a different security model. It normally requires:
+
+* transport security;
+* authenticated requests;
+* access-token validation;
+* network controls;
+* protection against unauthorised callers.
+
+The MCP authorisation specification applies to HTTP-based transports and uses OAuth-oriented mechanisms when protocol-level authorisation is implemented. `stdio` implementations are instead expected to obtain credentials through their local environment rather than apply the HTTP authorisation flow. ([Model Context Protocol][5])
+
+### Operational ownership
+
+With `stdio`, the host typically owns the process lifecycle:
+
+```text
+Start host
+   ↓
+Launch MCP server
+   ↓
+Exchange messages
+   ↓
+Stop server when connection ends
+```
+
+With Streamable HTTP, the service operator owns the server lifecycle:
+
+```text
+Deploy shared service
+   ↓
+Monitor and scale it independently
+   ↓
+Accept authorised client requests
+```
+
+This changes who handles upgrades, logging, capacity, availability and incident response.
+
+### Reuse and scale
+
+A local subprocess is simple for one host and one user, but it is usually not the natural choice for a centrally managed service shared by hundreds of clients.
+
+Conversely, deploying a remote service for a small local utility may add unnecessary infrastructure, authentication, network latency and operational overhead.
+
+The architect should choose the **simplest transport that satisfies the real deployment requirement**.
+
+---
+
+## 4. Architect’s lens
+
+Before selecting a transport, ask:
+
+1. **Where must the capability run?**
+   If it needs the user’s local filesystem or developer environment, `stdio` may be natural. If it accesses a centrally managed enterprise platform, Streamable HTTP is more likely.
+
+2. **Who should own the server lifecycle?**
+   Decide whether the MCP host should start and stop the server or whether an operations team should deploy, monitor and scale it independently.
+
+3. **Who needs to connect, and how will access be controlled?**
+   One local host and one local process suggest `stdio`. Multiple distributed hosts, central identity and governed network access suggest Streamable HTTP.
+
+---
+
+## 5. Real-life example
+
+A software company is building a Claude-based engineering assistant.
+
+It needs two MCP integrations.
+
+### Local repository server
+
+The first server can:
+
+* read the developer’s current working tree;
+* inspect uncommitted changes;
+* run approved local static-analysis commands;
+* retrieve local build output.
+
+This capability exists inside each developer’s workstation. The data may not yet have been pushed to a central repository.
+
+A suitable deployment is:
+
+```text
+Engineering Assistant
+        |
+        |— stdio → Local Repository MCP Server
+```
+
+The assistant launches the server as a subprocess. The organisation can sandbox it and restrict it to the selected repository directory.
+
+Deploying this capability as a remote HTTP service would be awkward: the remote service would not naturally have access to each developer’s uncommitted local files.
+
+### Shared release-governance server
+
+The second integration can:
+
+* retrieve central release policies;
+* check deployment approvals;
+* examine organisation-wide change windows;
+* submit an authorised release request.
+
+This service is used by developers, release managers and several AI applications.
+
+A suitable deployment is:
+
+```text
+Multiple approved MCP hosts
+        |
+        |— Streamable HTTP → Release Governance MCP Server
+```
+
+The service is independently deployed, centrally monitored and protected through enterprise authentication and authorisation.
+
+The two servers may expose equally important MCP tools, but their deployment boundaries are different. Therefore, their appropriate transports are different.
+
+---
+
+## 6. Exam-style question
+
+This is a **practice-derived scenario**, not an authentic certification question.
+
+A development team creates an MCP server that reads uncommitted source-code changes and runs a local compiler.
+
+Requirements include:
+
+* The server must access files on the developer’s workstation.
+* The MCP host should start and stop it automatically.
+* The server is used only by that local host.
+* The team wants to avoid opening an unnecessary network port.
+
+Which transport is the best fit?
+
+**A.** Streamable HTTP behind a public API gateway
+
+**B.** The deprecated HTTP+SSE transport
+
+**C.** `stdio`, with the client launching the server as a restricted local subprocess
+
+**D.** Streamable HTTP with no authentication because the server runs on localhost
+
+---
+
+## 7. Spot the clue
+
+The decisive phrases are:
+
+> **“Access files on the developer’s workstation”**
+
+> **“The MCP host should start and stop it”**
+
+> **“Used only by that local host”**
+
+These describe a **local, client-managed process boundary**.
+
+The requirement to avoid an unnecessary network port reinforces the same conclusion.
+
+---
+
+## 8. Answer reasoning
+
+**Correct answer: C**
+
+`stdio` is designed for a client-launched subprocess communicating through standard input and output. It fits a capability whose lifecycle is tied to the host and whose required data exists locally. It also avoids exposing an HTTP endpoint solely to connect two processes on the same workstation. ([Model Context Protocol][2])
+
+The server should still be treated as executable code with access to the user’s environment. Appropriate protections include restricted filesystem scope, minimal privileges, explicit consent for sensitive commands and sandboxing where practical. ([Model Context Protocol][4])
+
+---
+
+## 9. One-line architect rule
+
+> **Use `stdio` for client-managed local capabilities and Streamable HTTP for independently operated, network-accessible shared services.**
+
+---
+
+## 10. Source basis
+
+* Official MCP transport overview defining transports as bindings and identifying `stdio` and Streamable HTTP. ([Model Context Protocol][1])
+* Official MCP `stdio` transport specification. ([Model Context Protocol][2])
+* Official MCP Streamable HTTP specification and current compatibility guidance. ([Model Context Protocol][3])
+* Official MCP authorisation and security guidance. ([Model Context Protocol][4])
+* Practice-derived exam scenario based on official architectural patterns; it is not an authentic certification question.
+
+[1]: https://modelcontextprotocol.io/specification/2026-07-28/basic/transports?utm_source=chatgpt.com "Overview - Model Context Protocol"
+[2]: https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio?utm_source=chatgpt.com "stdio - Model Context Protocol"
+[3]: https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http?utm_source=chatgpt.com "Streamable HTTP - Model Context Protocol"
+[4]: https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices?utm_source=chatgpt.com "Security Best Practices - Model Context Protocol"
+[5]: https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization?utm_source=chatgpt.com "Authorization - Model Context Protocol"
+
+
 ## Aug 04, 2026
 
 ## 1. Level
