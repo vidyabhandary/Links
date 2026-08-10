@@ -1,5 +1,341 @@
 # Some learnings for Claude Architect 
 
+## Aug 10, 2026
+
+# Delegate Only When the Task Must Be Decomposed Dynamically
+
+## 1. Level - **Foundation**
+
+## 2. Today’s concept
+
+An **orchestrator–worker architecture** uses one central model to decide how a complex task should be divided, delegates the resulting subtasks to worker models or agents, and then combines their results.
+
+The important word is **dynamic**.
+
+The orchestrator does not merely launch a fixed set of predefined jobs. It looks at the specific request and decides:
+
+* what subtasks exist;
+* which workers should handle them;
+* whether some work can run in parallel;
+* when enough evidence has been collected;
+* how the separate results should be synthesised.
+
+Anthropic distinguishes this pattern from ordinary parallelisation. In parallelisation, the subtasks are known in advance. With orchestrator–workers, the subtasks are determined from the input because the required decomposition cannot reliably be predicted beforehand.
+
+Consider two research requests.
+
+**Request A**
+
+> Compare these three named contracts for five predefined clauses.
+
+The decomposition is predictable:
+
+```text
+Contract 1 analysis
+Contract 2 analysis
+Contract 3 analysis
+        ↓
+      combine
+```
+
+You probably do **not** need an LLM to decide what work exists.
+
+Now consider:
+
+> Investigate why our European customer churn increased this quarter and identify the most plausible causes.
+
+The required investigation might involve:
+
+```text
+             Orchestrator
+                  │
+        ┌─────────┼──────────┐
+        ▼         ▼          ▼
+   CRM analysis  Support   Pricing review
+                    │
+                    ▼
+             New hypothesis
+                    │
+                    ▼
+          Product usage analysis
+                    │
+                    ▼
+                Synthesis
+```
+
+The subtasks emerge as evidence is discovered.
+
+That is where orchestrator–worker architecture becomes valuable.
+
+The Foundation-level judgment to learn is:
+
+> **Use orchestration when decomposition itself requires reasoning.**
+
+---
+
+### Current Claude platform note
+
+Anthropic now also exposes multiagent orchestration through the **Claude Managed Agents** platform. Its current beta capability supports a coordinator delegating to agents with separate context threads and configurations. This is a product implementation of multiagent patterns; the architectural principle is broader than that particular API.
+
+---
+
+## 3. Why an architect cares
+
+It is easy to assume:
+
+> “If one Claude is useful, several Claudes must be better.”
+
+That is poor architecture.
+
+Every additional worker can introduce:
+
+* extra model calls and cost;
+* more latency;
+* duplicated work;
+* context-transfer overhead;
+* inconsistent conclusions;
+* more failure paths;
+* additional observability and evaluation requirements.
+
+Anthropic’s agent guidance recommends maintaining simplicity and adding complexity only when it creates measurable value. Agents are particularly useful where the model must obtain feedback from the environment, adapt its approach and continue until a meaningful success condition is reached.
+
+Therefore, the architect is not asking:
+
+> “Can we use multiple agents?”
+
+The architect is asking:
+
+> **“Does dynamic delegation solve a problem that a simpler architecture cannot solve sufficiently?”**
+
+This distinction matters in production and in scenario questions.
+
+A single model with good tools may outperform a poorly designed multiagent system simply because it has:
+
+* less coordination overhead;
+* one reasoning context;
+* fewer points of failure;
+* lower cost.
+
+Use the simplest sufficient architecture first.
+
+---
+
+## 4. Architect’s lens
+
+When considering orchestrator–workers, ask three questions:
+
+### 1. Can I determine the subtasks before execution?
+
+If yes, use deterministic sequencing or parallelisation where possible.
+
+If the task itself determines which investigations are needed, an orchestrator may add value.
+
+### 2. Do the workers gain anything from separation?
+
+Useful reasons include:
+
+* different tools;
+* specialised instructions;
+* isolated context;
+* genuinely independent work;
+* parallel execution.
+
+If every worker receives the same prompt, same context and same tools, splitting the work may add little value.
+
+### 3. Can the orchestrator verify and synthesise the outputs?
+
+Delegation without an integration step simply produces multiple answers.
+
+The architecture needs a clear mechanism for deciding:
+
+* which evidence matters;
+* whether workers disagree;
+* whether further investigation is needed;
+* what constitutes completion.
+
+---
+
+## 5. Real-life example
+
+A pharmaceutical company uses Claude to assist compliance analysts investigating potential adverse-event reports.
+
+Incoming reports vary enormously.
+
+One message might say:
+
+> “Patient experienced nausea after Product X.”
+
+Another could contain:
+
+* several medications;
+* an unclear product name;
+* foreign-language correspondence;
+* clinical notes;
+* a potential hospitalization;
+* references to earlier support cases.
+
+A fixed workflow containing ten analysis steps would execute unnecessary work for simple reports.
+
+A single giant prompt could also force one context to contain every possible instruction and capability.
+
+Instead, the company introduces an orchestrator.
+
+```text
+Incoming report
+      │
+      ▼
+Classification / planning agent
+      │
+      ├── Product identification worker
+      ├── Medical-event extraction worker
+      ├── Translation worker
+      ├── Historical-case search worker
+      └── Regulatory-rule worker
+                 │
+                 ▼
+          Orchestrator synthesis
+                 │
+                 ▼
+            Human reviewer
+```
+
+The orchestrator first examines the case.
+
+For a simple report, it may require only medical-event extraction and product identification.
+
+For a complicated report, it may delegate additional investigations.
+
+The workers have bounded responsibilities and can have different tools or context relevant to their job. Current Anthropic multiagent guidance explicitly identifies **parallelisation**, **specialisation**, and **escalation** as useful delegation patterns for complex work.
+
+The final regulatory decision is still reviewed by a qualified human.
+
+The important architectural benefit is **not merely having multiple agents**.
+
+It is that computational effort expands according to the complexity of the case.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A software company uses Claude to investigate production incidents.
+
+Every incident is different. Depending on the initial evidence, the investigation may require:
+
+* application-log analysis;
+* database analysis;
+* source-code inspection;
+* recent-deployment review;
+* infrastructure diagnostics.
+
+The team cannot know beforehand which investigations will be relevant. Most incidents require only two or three of them.
+
+Which architecture is the best fit?
+
+**A.** Always execute all five diagnostic processes in parallel and combine their outputs.
+
+**B.** Use an orchestrator that examines the incident, dynamically delegates relevant investigations to specialised workers, and synthesises the findings.
+
+**C.** Put all logs, source code, database information and infrastructure data into one prompt so Claude has everything available immediately.
+
+**D.** Create five independent agents and show all five final answers directly to the engineer.
+
+---
+
+## 7. Spot the clue
+
+The decisive phrase is:
+
+> **“The team cannot know beforehand which investigations will be relevant.”**
+
+That tells you the decomposition is **input-dependent**.
+
+Also notice:
+
+> **“Most incidents require only two or three.”**
+
+Running every possible investigation would waste cost and potentially increase latency.
+
+These clues point toward **dynamic orchestration**, not fixed parallelisation.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **B**
+
+An orchestrator–worker design fits because the central agent can inspect the incident, determine which specialised investigations are warranted, delegate those subtasks and then synthesise the evidence.
+
+Anthropic specifically identifies orchestrator–workers as useful when the required subtasks cannot be predicted in advance. This differs from ordinary parallelisation, where the set of subtasks is predefined.
+
+### Why A is tempting
+
+Parallel execution sounds attractive because:
+
+* investigations could finish quickly;
+* workers are independent;
+* all possible evidence becomes available.
+
+But the scenario explicitly states that many investigations are unnecessary.
+
+Executing all five every time would increase model and tool consumption and could also create irrelevant evidence that the final stage must reconcile.
+
+Parallelisation would be stronger if the problem instead said:
+
+> “Every incident must always undergo the same five mandatory diagnostic checks.”
+
+Then the tasks are known in advance and an LLM orchestrator may add unnecessary reasoning overhead.
+
+### Why C is weaker
+
+A huge single context may appear simpler, but it forces the model to absorb information that may not be relevant to the current incident.
+
+It also couples multiple systems and diagnostic domains into one reasoning step rather than allowing targeted evidence gathering.
+
+A single-agent solution could still be appropriate if that agent can efficiently call the necessary tools itself. Multiagent orchestration should not be introduced merely because many data sources exist.
+
+### What additional fact could change the decision?
+
+Suppose analysis shows that:
+
+* 95% of incidents need only one diagnostic tool;
+* one Claude agent chooses that tool reliably;
+* worker delegation adds significant latency;
+* there is no meaningful benefit from separate context or specialist instructions.
+
+Then the simpler solution would probably be:
+
+```text
+Single agent
+   ↓
+select diagnostic tool
+   ↓
+observe result
+   ↓
+continue if necessary
+```
+
+The existence of multiple possible capabilities does **not** automatically justify multiple agents.
+
+The additional architecture is justified only when dynamic decomposition or specialist delegation delivers enough quality, latency, context or operational benefit to outweigh the coordination cost.
+
+---
+
+## 9. One-line architect rule
+
+> **Use orchestrator–workers when deciding what work needs to be done is itself part of the reasoning problem.**
+
+---
+
+## 10. Source basis
+
+* Official Anthropic engineering guidance, **Building Effective AI Agents**, including the orchestrator–worker pattern and its distinction from fixed parallelisation.
+* Current Claude Platform documentation on **multiagent orchestration**, including coordinator-led delegation, context-isolated agents, parallelisation, specialisation and escalation.
+* Current Claude Platform documentation describing reusable Managed Agent configurations; the Managed Agents API remains a beta surface requiring the documented beta header.
+* Exam scenario is **practice-derived from official architectural patterns** and is not presented as an authentic certification question.
+
+
 ## Aug 05, 2026
 
 Today’s lesson completes the MCP foundation by connecting **transport choice** to deployment topology, security and operability.
