@@ -1,5 +1,390 @@
 # Some learnings for Claude Architect 
 
+## Aug 11, 2026
+
+## Evaluator–Optimizer: Improve Through Explicit Feedback Loops
+
+## 1. Level **Foundation**
+
+## 2. Today’s concept
+
+Yesterday’s orchestrator–worker pattern solved a particular problem:
+
+> **The system does not know in advance what subtasks will be needed.**
+
+Today’s pattern solves a different problem:
+
+> **The system can produce an answer, but the first answer may not meet a quality bar that can be clearly evaluated and improved.**
+
+This is the **evaluator–optimizer workflow**.
+
+The basic loop is:
+
+```text
+Task
+ │
+ ▼
+Generator
+ │
+ ▼
+Candidate output
+ │
+ ▼
+Evaluator ──── Pass ───► Final output
+ │
+ Fail + feedback
+ │
+ ▼
+Generator revises
+ │
+ └──────────────► Evaluate again
+```
+
+One model call produces the candidate. A separate evaluation step examines that candidate against explicit criteria and provides actionable feedback. The generator then uses that feedback to revise the result. Anthropic describes this pattern as especially useful when evaluation criteria are clear and iterative refinement measurably improves the result. ([Anthropic][1])
+
+The important distinction is:
+
+> **An evaluator should identify what must change, not merely say that the answer is bad.**
+
+Compare:
+
+```text
+Score: 6/10.
+```
+
+with:
+
+```text
+Revision required:
+- Section 3 makes a conclusion unsupported by the supplied evidence.
+- The response omits the contractual notice period.
+- The recommendation does not address the customer's stated cost constraint.
+```
+
+The second result gives the optimizer something useful to act on.
+
+---
+
+## 3. Why an architect cares
+
+A common reaction to inconsistent AI output is:
+
+> “Use a better model.”
+
+Sometimes that is appropriate.
+
+But sometimes the task is inherently iterative.
+
+Humans do not normally produce complex architecture reviews, compliance analyses or executive reports perfectly on their first attempt. They:
+
+1. create a draft;
+2. compare it against requirements;
+3. identify weaknesses;
+4. revise;
+5. stop when the quality threshold is met.
+
+An evaluator–optimizer workflow deliberately implements that feedback cycle.
+
+Anthropic distinguishes **workflows**, where model calls and tools follow predefined orchestration paths, from more autonomous agents that dynamically determine how to proceed. Evaluator–optimizer is therefore a workflow pattern: the feedback loop itself is architected in advance even though the critique and revision content are model-generated. ([Anthropic][1])
+
+This can improve quality, but it introduces costs:
+
+* another model invocation;
+* additional latency;
+* potentially several iterations;
+* greater evaluation complexity.
+
+Anthropic’s broader guidance is to start with the simplest solution and add agentic complexity only when the resulting quality improvement justifies the latency and cost trade-off. ([Anthropic][1])
+
+So the architectural decision is not:
+
+> “Would critique make the output nicer?”
+
+It is:
+
+> **“Is the quality problem important enough, measurable enough and improvable enough to justify an iterative loop?”**
+
+---
+
+## 4. Architect’s lens
+
+Before adding evaluator–optimizer, ask three questions.
+
+### 1. Can I describe the quality criteria clearly?
+
+Good criteria might include:
+
+* every recommendation must cite supplied evidence;
+* all mandatory requirements must be addressed;
+* contradictions between sources must be explicitly identified;
+* conclusions must distinguish fact from inference;
+* the response must consider cost, latency and security constraints.
+
+If the evaluator itself cannot reliably determine what “good” means, adding another LLM call may simply create another opinion.
+
+### 2. Can feedback actually improve the candidate?
+
+The generator must be able to act on the critique.
+
+A useful evaluator might say:
+
+> “The recommendation assumes EU customer data can leave the region, but the requirements state that data residency is mandatory.”
+
+The generator can fix that.
+
+A vague evaluator saying:
+
+> “Make the architecture more enterprise-ready”
+
+provides little improvement signal.
+
+### 3. Could a deterministic check solve the problem more cheaply?
+
+Do not use an evaluator LLM to check something ordinary code can guarantee.
+
+For example:
+
+```text
+Must contain exactly 10 records
+```
+
+→ validate with code.
+
+```text
+JSON must match this schema
+```
+
+→ use schema validation.
+
+```text
+All four stakeholder concerns are addressed coherently and the recommendation balances them
+```
+
+→ model-based evaluation may be useful.
+
+The evaluator should be reserved for judgments that genuinely require semantic reasoning.
+
+---
+
+## 5. Real-life example
+
+A bank uses Claude to draft investigation summaries for suspicious transaction cases.
+
+The model receives:
+
+* transaction history;
+* analyst notes;
+* customer information;
+* relevant policy excerpts.
+
+The first-generation summary is often readable, but reviewers identify recurring problems:
+
+* an important transaction is occasionally omitted;
+* facts and hypotheses are sometimes mixed together;
+* conclusions occasionally lack supporting evidence;
+* mitigating evidence may receive less attention than suspicious evidence.
+
+Simply asking Claude:
+
+> “Write a better investigation report”
+
+does not clearly address these weaknesses.
+
+The bank therefore defines an evaluation rubric.
+
+### Generator
+
+Produces the investigation summary.
+
+### Evaluator
+
+Checks the draft against four criteria:
+
+1. **Evidence coverage** — are material transactions and analyst findings represented?
+2. **Grounding** — is each significant conclusion supported by supplied evidence?
+3. **Fact/inference separation** — are hypotheses clearly distinguished from known facts?
+4. **Balanced analysis** — does the report include relevant mitigating as well as adverse evidence?
+
+Suppose the evaluator returns:
+
+```text
+FAIL
+
+Grounding:
+Paragraph 4 states that the customer deliberately structured
+payments to avoid monitoring thresholds. The evidence shows
+payments below the threshold but does not establish intent.
+
+Coverage:
+The draft omits the customer's documented explanation for
+the April 14 transfer.
+
+Required revision:
+Reframe the intent statement as a hypothesis and include the
+customer explanation before presenting the risk conclusion.
+```
+
+Claude then revises the draft.
+
+If the second evaluation passes the defined threshold, the document proceeds to the human investigator.
+
+Notice what this architecture **does not** do.
+
+The evaluator does not determine whether the customer committed financial crime.
+
+It evaluates the **quality of the AI-generated analysis** against defined criteria.
+
+The qualified human remains responsible for the consequential decision.
+
+This separation gives the feedback loop a narrow, defensible purpose.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A company uses Claude to produce architecture recommendations from customer requirements.
+
+The recommendations are usually strong, but reviewers repeatedly find that the first draft:
+
+* overlooks one or two stated constraints;
+* occasionally recommends technology without explaining the trade-off;
+* sometimes makes assumptions without labelling them.
+
+The requirements differ for every customer, so these issues cannot all be addressed with fixed keyword checks.
+
+The company wants to improve quality without requiring a human architect to rewrite every draft.
+
+Which approach is the best fit?
+
+**A.** Generate three architecture recommendations in parallel and select the longest response.
+
+**B.** Add an evaluator step that checks the draft against explicit criteria for requirement coverage, trade-off reasoning and assumption labelling, then provide targeted feedback for revision.
+
+**C.** Give the generator a much larger `max_tokens` value so it can produce more detail.
+
+**D.** Use an orchestrator to create several specialist workers regardless of the complexity of the request.
+
+---
+
+## 7. Spot the clue
+
+The important phrase is:
+
+> **“Reviewers repeatedly find that the first draft…”**
+
+The system can already perform the task.
+
+The problem is **quality after initial generation**.
+
+Then look at:
+
+> **“requirement coverage, trade-off reasoning and assumptions”**
+
+These are semantic quality criteria that can be articulated and evaluated.
+
+That combination strongly suggests an evaluator–optimizer loop.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **B**
+
+The problem is not primarily task decomposition. It is iterative quality improvement.
+
+Anthropic’s evaluator–optimizer pattern is intended for situations where:
+
+* there are clear evaluation criteria;
+* feedback can be articulated;
+* the generator can use that feedback to measurably improve its response. ([Anthropic][1])
+
+The evaluator can therefore inspect the architecture recommendation against explicit criteria such as:
+
+```text
+✓ Every mandatory constraint addressed
+✓ Major trade-offs explained
+✓ Assumptions labelled
+✓ Recommendation connected to evidence
+```
+
+A failed criterion should produce **specific revision guidance**, after which the generator tries again.
+
+### Why A is tempting but weaker
+
+Generating several answers can be useful when diversity or voting improves confidence. Anthropic treats this as a form of parallelisation. ([Anthropic][1])
+
+But the scenario already identifies recurring, known quality defects.
+
+Three drafts may reproduce the same defects.
+
+More importantly, “select the longest” is unrelated to the actual success criteria.
+
+If the requirement instead said:
+
+> “There are several defensible architecture approaches and the company wants genuinely independent alternatives before choosing one,”
+
+parallel generation could be useful.
+
+### Why D is weaker
+
+An orchestrator–worker architecture is valuable when the system must dynamically determine which subtasks need to be delegated. ([Anthropic][1])
+
+Nothing here says decomposition is the problem.
+
+Introducing specialised workers would add coordination cost without directly targeting the identified failure mode.
+
+### What additional fact could change the decision?
+
+Suppose further analysis shows that almost every failure is simply:
+
+> “One mandatory requirement ID is missing from the output.”
+
+If every requirement has an ID such as:
+
+```text
+REQ-001
+REQ-002
+REQ-003
+```
+
+and the output must reference every applicable ID, ordinary code could verify coverage deterministically.
+
+Then the better architecture may be:
+
+```text
+Generate
+   ↓
+Programmatic requirement-ID validation
+   ↓
+Pass / regenerate
+```
+
+Using another LLM merely to discover that `REQ-017` is absent would add unnecessary cost and uncertainty.
+
+This leads to an important diagnostic hierarchy:
+
+> **Deterministic validation first; semantic evaluator when judgment is genuinely required.**
+
+---
+
+## 9. One-line architect rule
+
+> **Use evaluator–optimizer when quality can be clearly judged, feedback can drive a better revision, and deterministic validation is not sufficient.**
+
+---
+
+## 10. Source basis
+
+* Official Anthropic engineering guidance, **Building effective agents**, defining evaluator–optimizer as a generator/evaluator feedback loop and recommending it when evaluation criteria are clear and iterative refinement produces measurable improvement. ([Anthropic][1])
+* The same official guidance distinguishes predefined workflows from dynamically directed agents and recommends increasing architectural complexity only when the benefit justifies the cost and latency trade-off. ([Anthropic][1])
+* Anthropic notes that the surrounding agent tooling landscape has evolved since the original December 2024 publication, but continues to present these composable workflow patterns as architectural guidance while directing readers to newer agent tooling for current implementations. ([Anthropic][1])
+* Exam scenario is **practice-derived from official architectural patterns** and is not presented as an authentic certification question.
+
+[1]: https://www.anthropic.com/research/building-effective-agents?_bhlid=137363142c705ed9914261e1aa9fbe9b57c94ed2 "Building Effective AI Agents \ Anthropic"
+
+
 ## Aug 10, 2026
 
 # Delegate Only When the Task Must Be Decomposed Dynamically
