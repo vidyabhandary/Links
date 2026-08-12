@@ -1,5 +1,392 @@
 # Some learnings for Claude Architect 
 
+## Aug 12, 2026
+
+# Routing: Classify First, Then Send Work to the Right Path
+
+## 1. Level
+
+**Foundation**
+
+## 2. Today’s concept
+
+A **routing workflow** first classifies an input, then directs it to a specialised downstream path.
+
+The architecture is simple:
+
+```text
+Incoming request
+      |
+      v
+    Router
+      |
+  +---+---+---+
+  |       |   |
+  v       v   v
+Path A  Path B Path C
+```
+
+Anthropic describes routing as useful when a broader task contains **distinct categories that are better handled separately** and the category can be identified accurately. Each route can then use its own prompt, tools, model configuration, workflow, or business logic. ([Anthropic][1])
+
+The key architectural insight is:
+
+> **Routing is appropriate when the destination varies, but the set of possible destinations is already understood.**
+
+That makes routing fundamentally different from the **orchestrator–worker** pattern from Monday.
+
+With routing:
+
+```text
+We know the possible paths.
+We need to choose one.
+```
+
+With orchestrator–workers:
+
+```text
+We do not necessarily know what subtasks will be required.
+The model must discover and delegate them.
+```
+
+And it differs from yesterday’s evaluator–optimizer pattern:
+
+```text
+Routing       → Which path should handle this?
+Orchestration → What work needs to be created?
+Evaluation    → Is this result good enough?
+```
+
+These distinctions are useful because they prevent architects from adding unnecessary agent autonomy.
+
+---
+
+## 3. Why an architect cares
+
+Suppose one giant Claude prompt handles:
+
+* invoice questions;
+* contract review;
+* supplier onboarding;
+* security questionnaires;
+* general administrative requests.
+
+The prompt must now contain instructions, constraints, examples, and possibly tool descriptions for every category.
+
+That can make the system harder to:
+
+* optimise;
+* evaluate;
+* secure;
+* operate;
+* change independently.
+
+A routing layer can separate those concerns.
+
+For example:
+
+```text
+                      +-> Invoice workflow
+Incoming document --->+-> Contract workflow
+                      +-> Tax-document workflow
+                      +-> General correspondence
+```
+
+Each path can now have only the context and capabilities relevant to its job.
+
+Anthropic specifically notes that separation through routing allows specialised prompts to be optimised independently; trying to optimise one general prompt for very different input types can hurt performance on other types. ([Anthropic][1])
+
+But routing itself has a failure mode:
+
+> **A perfect downstream workflow cannot recover if the request was sent to the wrong route.**
+
+Therefore, architects need to evaluate the router itself—not merely the quality of each downstream process.
+
+---
+
+## 4. Architect’s lens
+
+When considering routing, ask three questions.
+
+### 1. Are the categories genuinely distinct and known?
+
+Routing works well when categories such as:
+
+* invoice;
+* purchase order;
+* contract;
+* tax form;
+
+have meaningfully different downstream handling.
+
+If every input ultimately needs essentially the same reasoning and tools, separate routes may add needless complexity.
+
+### 2. How difficult is classification?
+
+Do not automatically use Claude as the router.
+
+If the request contains a reliable field such as:
+
+```text
+documentType = "invoice"
+```
+
+ordinary application logic should probably route it.
+
+If instead the system must understand:
+
+> “Please reimburse the duplicate amount charged on last month’s renewal.”
+
+semantic classification may justify an LLM-based router.
+
+Anthropic’s routing guidance explicitly allows classification to be performed either by an LLM or by a traditional classification model or algorithm when that is sufficient. ([Anthropic][1])
+
+### 3. What happens when classification is uncertain?
+
+A production router should not pretend every request fits neatly into a category.
+
+Possible strategies include:
+
+```text
+high confidence      -> specialised route
+low confidence       -> general workflow
+sensitive ambiguity  -> human review
+```
+
+The architecture should match the consequences of misrouting.
+
+Sending an ambiguous FAQ to the wrong knowledge prompt is inconvenient.
+
+Sending a potential regulatory complaint into a low-risk general-support workflow may be materially worse.
+
+---
+
+## 5. Real-life example
+
+A global procurement department receives thousands of documents through one mailbox.
+
+Most fall into four categories:
+
+1. supplier invoices;
+2. contracts;
+3. tax certificates;
+4. general supplier correspondence.
+
+The downstream processes differ substantially.
+
+### Invoice route
+
+Extract:
+
+* supplier;
+* invoice number;
+* amount;
+* purchase-order reference.
+
+Then validate against the finance system.
+
+### Contract route
+
+Identify:
+
+* parties;
+* term;
+* renewal;
+* liability;
+* governing law.
+
+Then send higher-risk clauses for legal review.
+
+### Tax-document route
+
+Extract jurisdiction-specific tax identifiers and validate mandatory fields.
+
+### Correspondence route
+
+Summarise the message and identify the appropriate procurement owner.
+
+A team proposes giving one autonomous agent every tool and asking:
+
+> “Figure out what this document is and handle it.”
+
+That could work, but it grants the agent more capability and responsibility than the problem requires.
+
+The organisation already knows the four major categories.
+
+A simpler architecture is:
+
+```text
+Document
+   |
+   v
+Classifier
+   |
+   +-- invoice ------> Invoice pipeline
+   |
+   +-- contract -----> Contract pipeline
+   |
+   +-- tax ----------> Tax pipeline
+   |
+   +-- correspondence -> Correspondence pipeline
+```
+
+For obvious PDFs with structured metadata, deterministic rules might route the document without an LLM.
+
+For ambiguous uploads, Claude could classify the document semantically.
+
+The architect has separated two questions:
+
+1. **What type of input is this?**
+2. **How should that type be processed?**
+
+That makes each part easier to test.
+
+Imagine that contract extraction quality suddenly drops.
+
+Without routing, you might investigate:
+
+* the giant system prompt;
+* tool selection;
+* model behaviour;
+* document parsing;
+* contract instructions;
+* unrelated invoice instructions.
+
+With routing, diagnosis becomes clearer:
+
+```text
+Was it classified as a contract?
+      |
+     yes
+      |
+Did the contract workflow fail?
+```
+
+That is an operability advantage, not merely a prompting advantage.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A company operates an internal employee assistant.
+
+Requests fall into four stable categories:
+
+* payroll;
+* benefits;
+* IT support;
+* facilities.
+
+Each category has different approved knowledge sources, tools, access controls, and escalation procedures.
+
+Classification accuracy is high because employees normally describe the issue clearly. The company wants the lowest-complexity architecture that preserves specialised handling.
+
+Which design is the best fit?
+
+**A.** Give one autonomous agent every payroll, HR, IT, and facilities tool and allow it to plan freely.
+
+**B.** Use a routing step to classify the request and send it to the appropriate specialised workflow.
+
+**C.** Launch four specialist agents for every request and ask an evaluator to choose the best answer.
+
+**D.** Use an orchestrator to dynamically invent subtasks for every employee request.
+
+---
+
+## 7. Spot the clue
+
+Two phrases dominate the scenario:
+
+> **“Four stable categories”**
+
+and:
+
+> **“Each category has different … tools, access controls, and escalation procedures.”**
+
+The possible destinations are already known.
+
+The system needs to **choose among predefined paths**, not discover a new decomposition.
+
+That is routing.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **B**
+
+Routing is designed for exactly this situation: classify an input into a known category and direct it to specialised downstream handling. Anthropic recommends the pattern where distinct categories benefit from separate prompts or processes and classification can be performed accurately. ([Anthropic][1])
+
+It also supports the requirement for low architectural complexity. Anthropic’s broader agent guidance recommends starting with the simplest design that satisfies the problem rather than introducing autonomous agents unnecessarily. ([Anthropic][1])
+
+### Why A is tempting but weaker
+
+One capable agent with every tool appears flexible.
+
+It could probably determine:
+
+> “This is a payroll question.”
+
+Then choose the payroll tools.
+
+But now the agent must reason across:
+
+* unrelated tools;
+* multiple security domains;
+* different escalation policies;
+* different instructions.
+
+The requirements already provide a clean separation.
+
+Adding broad autonomy solves a problem the organisation does not have.
+
+### Why D is weaker
+
+An orchestrator–worker architecture becomes attractive when the required work cannot be determined in advance.
+
+For example:
+
+> “Investigate why this employee cannot complete onboarding.”
+
+The investigation might dynamically require identity, HRIS, device-provisioning, background-check, and manager-approval analysis.
+
+But the present scenario says requests belong to four established service categories. The task is classification, not dynamic decomposition.
+
+### What additional fact could change the decision?
+
+Suppose real production data shows that employee requests frequently span categories:
+
+> “My promotion was approved, but my salary did not change, my new software access is missing, and my office location is still incorrect.”
+
+Now one request may require coordinated payroll, HR, IT, and facilities work.
+
+If the necessary combination varies significantly from case to case, a simple single-route classifier may become insufficient.
+
+An orchestrator could then dynamically delegate several investigations and combine their results.
+
+Notice what changed:
+
+**Before:** choose one known destination.
+
+**After:** discover and coordinate several required subtasks.
+
+The architecture should change because the **problem structure changed**, not because multiagent architecture sounds more advanced.
+
+---
+
+## 9. One-line architect rule
+
+> **Use routing when the possible paths are known and the main reasoning problem is choosing the correct one.**
+
+## 10. Source basis
+
+Official Anthropic engineering guidance defines routing as classifying input and directing it to specialised follow-up tasks, recommends it for distinct categories that can be classified reliably, and explicitly notes that the classifier may be an LLM or a traditional algorithm. ([Anthropic][1])
+
+[1]: https://www.anthropic.com/engineering/building-effective-agents?utm_source=chatgpt.com "Building Effective AI Agents \ Anthropic"
+[2]: https://www.anthropic.com/news/claude-partner-network?ref=techlaugh&utm_source=chatgpt.com "Anthropic invests $100 million into the Claude Partner Network \ Anthropic"
+
+
 ## Aug 11, 2026
 
 ## Evaluator–Optimizer: Improve Through Explicit Feedback Loops
