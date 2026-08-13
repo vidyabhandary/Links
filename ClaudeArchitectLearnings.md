@@ -1,5 +1,397 @@
 # Some learnings for Claude Architect 
 
+## Aug 13, 2026
+
+# Workflow or Agent? Set the Right Autonomy Boundary
+
+## 1. Level
+
+**Foundation**
+
+Today’s lesson is the Thursday architectural trade-off for Week 4. The Foundation-level skill is choosing **how much decision-making Claude should own**. Professional depth later adds enterprise controls around that autonomy: policy, observability, financial limits, segregation of duties, incident handling, and lifecycle governance.
+
+---
+
+## 2. Today’s concept
+
+Anthropic makes a useful architectural distinction between **workflows** and **agents**:
+
+* A **workflow** uses predefined code paths to orchestrate Claude and tools.
+* An **agent** lets Claude dynamically decide how to proceed and which tools or steps to use. ([Anthropic][1])
+
+Think of the difference as **where the control flow lives**.
+
+### Workflow
+
+```text
+Receive document
+      ↓
+Extract fields
+      ↓
+Validate fields
+      ↓
+Check database
+      ↓
+Generate summary
+      ↓
+Human approval
+```
+
+Your application determines the path.
+
+Claude may perform intelligent work inside individual stages, but it does not decide that the entire process should suddenly branch into five new investigations.
+
+### Agent
+
+```text
+Goal
+ │
+ ▼
+Claude assesses situation
+ │
+ ├─ use tool
+ ├─ inspect result
+ ├─ revise plan
+ ├─ use another tool
+ ├─ recover from failure
+ └─ stop when goal reached
+```
+
+Claude controls more of the path.
+
+Anthropic recommends increasing this kind of complexity only when the problem actually requires it. Workflows offer predictability for well-defined tasks; agents are better suited to open-ended problems where the required sequence of steps cannot reasonably be hard-coded. Agentic designs typically trade additional cost and latency for greater flexibility. ([Anthropic][1])
+
+The architect’s question is therefore not:
+
+> **“Can Claude act autonomously?”**
+
+It is:
+
+> **“Which decisions genuinely need Claude’s judgment, and which should remain deterministic?”**
+
+---
+
+## 3. Why an architect cares
+
+Autonomy creates value when the environment is uncertain.
+
+It also creates additional failure modes.
+
+As Claude gains control over more steps, you potentially gain:
+
+* adaptation to unexpected conditions;
+* recovery from tool failures;
+* flexible investigation;
+* ability to pursue long or variable tasks.
+
+But you also increase:
+
+* cost variability;
+* latency variability;
+* number of possible execution paths;
+* difficulty of exhaustive testing;
+* risk of compounding errors;
+* importance of stopping conditions and guardrails.
+
+Anthropic specifically recommends that agents obtain ground-truth feedback from their environment after actions, and notes that practical agent loops commonly include stopping conditions such as iteration limits. It also warns that autonomous systems have higher costs and greater potential for compounding errors. ([Anthropic][1])
+
+This gives architects a useful principle:
+
+> **Autonomy should be earned by uncertainty.**
+
+If the business already knows the correct process, encode that process.
+
+Do not make Claude rediscover it on every execution.
+
+---
+
+## 4. Architect’s lens
+
+When deciding between a workflow and an agent, ask:
+
+### 1. **Can the valid path be specified before execution?**
+
+If the business process is:
+
+```text
+receive → validate → enrich → approve → submit
+```
+
+and those stages are mandatory, a workflow is usually preferable.
+
+If instead the task is:
+
+> “Determine why this deployment failed and fix the application.”
+
+the required number and type of actions may depend entirely on what Claude discovers.
+
+That is much more agent-shaped.
+
+### 2. **What is the consequence of an unnecessary or incorrect action?**
+
+Greater autonomy is easier to justify for reversible exploration:
+
+* searching documentation;
+* inspecting logs;
+* running tests in a sandbox.
+
+It deserves stronger constraints for consequential actions:
+
+* deleting production records;
+* approving payments;
+* changing employee compensation;
+* sending legally binding communications.
+
+You can also combine approaches: allow agentic investigation but place consequential actions behind deterministic controls or human approval.
+
+### 3. **Can success be observed from the environment?**
+
+Agents work best when they can act and obtain useful feedback.
+
+For example:
+
+```text
+modify code
+    ↓
+run test
+    ↓
+test fails
+    ↓
+inspect failure
+    ↓
+modify code again
+```
+
+Anthropic highlights coding as particularly suitable for agents because automated tests provide concrete environmental feedback and measurable outcomes. ([Anthropic][1])
+
+If Claude cannot tell whether its actions improved the situation, increased autonomy may simply create a longer chain of unverified guesses.
+
+---
+
+## 5. Real-life example
+
+A company wants Claude to help resolve failed enterprise integrations.
+
+An integration may fail because of:
+
+* expired credentials;
+* schema changes;
+* API throttling;
+* malformed source data;
+* an unavailable downstream system;
+* mapping logic;
+* a deployment regression.
+
+The team considers two architectures.
+
+### Option A — Fixed workflow
+
+```text
+Check credentials
+      ↓
+Check API status
+      ↓
+Check schema
+      ↓
+Check mappings
+      ↓
+Check logs
+      ↓
+Produce diagnosis
+```
+
+This is highly predictable.
+
+But every incident performs every step, and new failure modes require modifying the workflow.
+
+### Option B — Fully autonomous remediation agent
+
+Claude receives:
+
+> “Find and fix the integration.”
+
+It may inspect logs, query APIs, modify mappings, alter configuration, retry transactions and deploy changes.
+
+That is flexible—but far more autonomy than the business may initially need.
+
+### Better architecture: bounded autonomy
+
+The architect separates **diagnosis** from **consequential remediation**.
+
+```text
+Failure detected
+      ↓
+Agentic investigation
+      │
+      ├─ inspect logs
+      ├─ query API health
+      ├─ inspect schemas
+      ├─ compare recent changes
+      └─ test hypotheses
+      ↓
+Diagnosis + proposed remediation
+      ↓
+Deterministic policy checks
+      ↓
+Human approval for risky change
+      ↓
+Controlled execution
+```
+
+Claude has autonomy where dynamic reasoning creates value.
+
+The surrounding system retains deterministic control where the cost of a mistake is higher.
+
+This is often the more useful interpretation of “agent architecture”: **not maximum autonomy, but deliberately placed autonomy**.
+
+Current Claude Platform documentation reflects the growing availability of long-running autonomous execution through Claude Managed Agents, including tool use, persistent sessions, interruption/steering, and sandboxed execution. Managed Agents is currently documented as a beta capability, so its existence should not be confused with an architectural requirement to use autonomous agents for every workload. ([Claude Platform][2])
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A healthcare company uses Claude to process provider-registration applications.
+
+The regulatory process requires exactly these stages:
+
+1. validate mandatory fields;
+2. verify the provider licence through an approved service;
+3. check sanctions status;
+4. generate an evidence summary;
+5. send the case to a human credentialing officer for approval.
+
+The sequence is mandatory and auditors require predictable evidence showing that every stage occurred.
+
+Some architects propose replacing the pipeline with an autonomous agent that decides which checks are necessary for each application.
+
+Which architecture is the **best fit**?
+
+**A.** Use an autonomous agent because it can skip checks that appear unnecessary and therefore reduce latency.
+
+**B.** Keep the mandatory stages in a deterministic workflow while using Claude within appropriate stages for tasks such as evidence interpretation and summarisation.
+
+**C.** Use an orchestrator–worker system that dynamically decides which regulatory checks to delegate.
+
+**D.** Ask Claude to perform the entire credentialing decision and periodically audit a sample of its decisions.
+
+---
+
+## 7. Spot the clue
+
+The decisive phrases are:
+
+> **“The sequence is mandatory”**
+
+and
+
+> **“auditors require predictable evidence showing that every stage occurred.”**
+
+There is no architectural benefit in letting Claude decide whether mandatory stages should happen.
+
+The business has already defined the control flow.
+
+Use Claude for the portions requiring intelligence—not for rediscovering the process.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **B**
+
+A workflow fits because the required path is known in advance and every stage must occur. Anthropic recommends workflows where predictability and consistency matter and agents where flexibility and model-directed decision-making are genuinely necessary. ([Anthropic][1])
+
+Claude can still add considerable value inside the workflow:
+
+```text
+Deterministic:
+Licence lookup must occur
+
+Intelligent:
+Interpret the returned licence evidence
+```
+
+or:
+
+```text
+Deterministic:
+Human approval must occur
+
+Intelligent:
+Prepare a concise evidence summary for the reviewer
+```
+
+This architecture preserves both AI capability and regulatory control.
+
+### Why A is tempting but weaker
+
+Skipping apparently unnecessary checks could reduce latency and cost.
+
+But the scenario does not say:
+
+> “Perform whichever checks appear relevant.”
+
+It says the checks are **mandatory**.
+
+The optimisation therefore conflicts with a harder constraint.
+
+Exam scenarios frequently include attractive answers that optimise one dimension—cost, speed, sophistication—while violating a non-negotiable requirement.
+
+### Why C is weaker
+
+Orchestrator–workers are useful when the required subtasks cannot be predicted beforehand. Here the five stages are explicitly known. Dynamic decomposition adds uncertainty without solving a requirement. Anthropic distinguishes orchestrator–workers from predefined workflows precisely on this point. ([Anthropic][1])
+
+### What additional fact could change the decision?
+
+Suppose the requirement changed:
+
+> Credentialing officers must investigate anomalies, but the necessary investigation varies by application and may involve licensing boards, corporate registries, sanctions sources, professional-history databases, and supporting documents.
+
+Now the **mandatory baseline checks** could remain deterministic while unusual cases trigger an agentic investigation.
+
+The resulting architecture might become:
+
+```text
+Mandatory workflow
+      ↓
+Anomaly?
+   /      \
+ no       yes
+ |         |
+continue   bounded investigation agent
+             ↓
+          return evidence
+             ↓
+       mandatory human approval
+```
+
+Notice that we did not replace the whole workflow with an agent.
+
+We introduced autonomy only where the problem became unpredictable.
+
+That is the architectural judgment being tested.
+
+---
+
+## 9. One-line architect rule
+
+> **Hard-code what the business already knows; give Claude autonomy only where the path genuinely depends on what it discovers.**
+
+---
+
+## 10. Source basis
+
+Anthropic’s official **Building effective agents** guidance defines workflows as predefined orchestration and agents as systems in which the model dynamically controls its process, recommends starting with the simplest sufficient architecture, and highlights the cost, latency, and error-compounding trade-offs of autonomy. ([Anthropic][1])
+
+Current official **Claude Managed Agents** documentation describes Anthropic’s managed autonomous-agent runtime for long-running tasks, tool execution, persistent sessions, sandboxing, and agent steering; it currently remains a beta offering. ([Claude Platform][2])
+
+The healthcare scenario and question are **practice-derived from those architectural principles**, not authentic Anthropic certification questions.
+
+[1]: https://www.anthropic.com/engineering/building-effective-agents "Building Effective AI Agents \ Anthropic"
+[2]: https://platform.claude.com/docs/en/managed-agents/overview "Claude Managed Agents overview - Claude Platform Docs"
+
+
 ## Aug 12, 2026
 
 # Routing: Classify First, Then Send Work to the Right Path
