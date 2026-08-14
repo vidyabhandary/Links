@@ -1,5 +1,267 @@
 # Some learnings for Claude Architect 
 
+## Aug 14, 2026
+
+# From Claude Call to Bounded Agent Architecture
+
+## 1. Level
+
+**Foundation — Four-week consolidation checkpoint**
+
+This checkpoint covers the architectural judgment built across the first four weeks. There is **no new pattern today**. The goal is to decide which mechanism solves which problem, especially when several plausible Claude features appear in the same scenario.
+
+---
+
+## 2. Today’s concept
+
+The first four weeks can be compressed into one architectural sequence:
+
+> **Define the boundary → define the contract → execute safely → interpret the result → add orchestration only when the problem demands it.**
+
+You should now be able to distinguish these layers:
+
+| Problem you are solving                          | First architectural place to look                 |
+| ------------------------------------------------ | ------------------------------------------------- |
+| Claude sends invalid tool parameters             | Tool description / `input_schema`                 |
+| Claude requests a client tool                    | Application executes it and returns `tool_result` |
+| Application stops after a tool request           | Orchestration / `stop_reason` handling            |
+| External capabilities need a standard connection | MCP                                               |
+| Information versus action                        | Resource versus tool                              |
+| Local capability versus shared remote service    | `stdio` versus Streamable HTTP                    |
+| Sensitive capability needed only occasionally    | Least privilege / step-up access                  |
+| Request belongs to one known category            | Routing                                           |
+| Required subtasks are unknown beforehand         | Orchestrator–workers                              |
+| First result needs criterion-driven refinement   | Evaluator–optimizer                               |
+| Business path is predetermined                   | Workflow                                          |
+| Path must adapt to environmental feedback        | Agent                                             |
+
+Claude’s current client-tool lifecycle still follows the contract you have learned: Claude sees the tool definition and schema, returns structured `tool_use` blocks with `stop_reason: "tool_use"`, the application executes those client tools, and the results return in `tool_result` blocks. ([Claude Platform][1])
+
+Anthropic’s agent guidance similarly emphasises choosing the **simplest architecture sufficient for the task** rather than treating increasing autonomy as inherently better. ([Anthropic][2])
+
+---
+
+## 3. Why an architect cares
+
+Most production failures are easier to solve once you identify **which layer actually changed**.
+
+Suppose quality falls after a deployment. Possible causes include a modified tool schema, new permissions, a routing error, an incorrect tool result, or an agent being given more autonomy. Immediately changing the system prompt or model ignores those distinctions.
+
+The architect’s job is therefore to diagnose before redesigning.
+
+A useful mental sequence is:
+
+**Constraint → failure layer → simplest sufficient control → verify outcome**
+
+This applies equally to exam scenarios. Attractive distractors frequently improve something—speed, sophistication, autonomy, model capability—while failing to address the actual constraint.
+
+---
+
+## 4. Architect’s lens
+
+For today’s checkpoint, use three questions repeatedly:
+
+1. **What exactly changed or failed?**
+   Separate model reasoning from interface, integration, authorization, orchestration, and workflow problems.
+
+2. **Who should control the decision?**
+   Decide whether it belongs to deterministic application logic, Claude, the MCP host/server boundary, or a human reviewer.
+
+3. **What is the least complex architecture that satisfies every hard constraint?**
+   Do not introduce an agent, additional model call, remote service, or broad permission merely because it is technically possible.
+
+---
+
+# 5. Real-life integrated scenario
+
+A retailer is building a Claude-based **customer-resolution assistant**.
+
+It must handle:
+
+* ordinary product questions;
+* delivery investigations;
+* refund requests;
+* complicated complaints spanning several systems.
+
+The company has these systems:
+
+* product-policy documents;
+* order-management APIs;
+* shipping APIs;
+* refund APIs;
+* customer-support records.
+
+Most requests fit one known category. However, unusual complaints may require investigation across several systems depending on what Claude discovers.
+
+Refunds are financially consequential and require explicit customer-service authorization.
+
+### A sensible architecture
+
+The application first **routes** ordinary requests into predefined support paths because the categories are known. Anthropic identifies routing as a good fit when distinct categories can be classified accurately and benefit from specialised handling. ([Anthropic][2])
+
+Product policies can be supplied as contextual **resources**, while live order queries and refund operations are **tools**. MCP’s current architecture continues to distinguish tools as executable functions, resources as context data, and prompts as reusable interaction templates. ([Model Context Protocol][3])
+
+A centrally operated order-management MCP server used by many assistants naturally fits remote connectivity, while a genuinely workstation-local capability would more naturally fit `stdio`; MCP’s current architecture documents both local `stdio` and remote Streamable HTTP deployment patterns. ([Model Context Protocol][3])
+
+For an ordinary delivery question:
+
+```text
+Route: delivery
+      ↓
+Claude calls shipment lookup
+      ↓
+Application executes client tool
+      ↓
+tool_result returned
+      ↓
+Claude interprets evidence
+      ↓
+Answer
+```
+
+For a refund, the architecture adds an authorization boundary before the financial action executes.
+
+For a complex complaint such as:
+
+> “My replacement was never delivered, the original order was charged twice, and my previous support case says I was promised a refund.”
+
+the required investigation may not be predictable. Only that exceptional route might justify dynamic orchestration across order, shipping, payment, and support-history workers. Anthropic’s orchestrator–worker pattern is specifically intended for cases where the necessary subtasks depend on the particular input rather than being known beforehand. ([Anthropic][2])
+
+Notice what the design does **not** do: it does not turn every product question into a multiagent investigation.
+
+---
+
+# 6. Checkpoint questions
+
+These are **practice-derived questions**, not authentic Anthropic certification questions.
+
+### Question 1
+
+Claude correctly returns:
+
+```text
+stop_reason = "tool_use"
+```
+
+with a valid `lookup_shipment` request.
+
+The application displays “Claude is checking your shipment” and ends the interaction without executing anything.
+
+What is the **best first fix**?
+
+**A.** Strengthen the tool description.
+**B.** Increase `max_tokens`.
+**C.** Execute the requested client tool, return the corresponding `tool_result`, and continue the conversation.
+**D.** Replace the workflow with an autonomous agent.
+
+### Spot the clue
+
+> **“Valid `lookup_shipment` request”**
+
+Claude selected and formatted the tool correctly. The failure occurred **after tool selection**.
+
+### Answer reasoning
+
+**Correct: C.**
+
+For client tools, `stop_reason: "tool_use"` means Claude is waiting for the application to execute the requested operation and return its result. ([Claude Platform][1])
+
+**Why A is tempting but weaker:** poor descriptions certainly can cause wrong tool selection or malformed requests. Neither happened here.
+
+**What could change the answer:** if Claude repeatedly selected the wrong shipping tool or supplied incorrect parameters, then the tool definition and schema would become the first diagnostic target.
+
+---
+
+### Question 2 — **Select TWO**
+
+The refund tool is used in fewer than 2% of support conversations. The security team wants to reduce the impact of compromised credentials and preserve clear user intent.
+
+Which TWO choices are strongest?
+
+**A.** Give every support session broad refund-write access at login.
+
+**B.** Keep normal sessions read-oriented and obtain narrowly scoped authorization when a refund is actually requested.
+
+**C.** Tell Claude in the system prompt that refund access is sensitive and rely on that instruction instead of server-side authorization.
+
+**D.** Require an appropriate approval/control before the consequential refund executes.
+
+**E.** Replace the refund tool with a resource.
+
+### Spot the clue
+
+> **“Fewer than 2%”**, **“compromised credentials”**, and **“clear user intent.”**
+
+The privileged capability is uncommon and consequential.
+
+### Answer reasoning
+
+**Correct: B and D.**
+
+Access to a capability and approval of a particular action are different controls. Granting narrow permissions only when necessary reduces exposure, while a consequential financial operation can still require explicit approval.
+
+**Why A is tempting but weaker:** it improves convenience but widens the privilege boundary for the other 98% of interactions.
+
+**What could change the answer:** if every user were a dedicated refund specialist whose principal workflow required refunds throughout a short controlled session, a narrowly scoped refund permission at session start might be reasonable. It still would not justify unrelated financial permissions.
+
+---
+
+### Question 3
+
+The retailer has four stable ordinary support categories, but about 3% of complaints require unpredictable investigation across orders, shipping, payments, and previous support interactions.
+
+Which architecture best follows the principles learned so far?
+
+**A.** Use orchestrator–workers for every request because multiagent systems are more flexible.
+
+**B.** Use one deterministic workflow containing every possible investigation for every customer.
+
+**C.** Route ordinary requests to specialised workflows and allow the exceptional complex route to invoke bounded dynamic orchestration when the required investigation cannot be predetermined.
+
+**D.** Generate several answers in parallel and choose the longest.
+
+### Spot the clue
+
+Two different problem structures coexist:
+
+> **“Four stable ordinary support categories”**
+
+but:
+
+> **“unpredictable investigation”** for a small minority.
+
+Do not force one orchestration pattern onto both.
+
+### Answer reasoning
+
+**Correct: C.**
+
+Routing solves the predictable classification problem. Dynamic orchestration is reserved for the cases where decomposition itself requires reasoning. Anthropic explicitly differentiates routing from orchestrator–workers on this basis and recommends adding multi-step complexity only when simpler approaches fall short. ([Anthropic][2])
+
+**Why A is the strongest distractor:** it would technically handle both simple and complex cases, but it pays the coordination, cost, latency, and operational complexity of dynamic delegation even where that flexibility provides no value.
+
+**What could change the answer:** if nearly every support interaction became cross-system, unpredictable, and iterative, the balance could move toward agentic orchestration as the default rather than the exception.
+
+---
+
+## 7. Diagnostic pattern
+
+If you remember only one diagnostic chain from the first month, use this:
+
+> **Is the problem the input contract, execution, returned evidence, control flow, system boundary, permission boundary, task classification, dynamic decomposition, or output quality?**
+
+Only after identifying that should you decide whether to change:
+
+**schema → application logic → MCP design → authorization → routing/workflow → agent architecture → evaluation**
+
+This prevents the common mistake of treating every AI-system problem as a prompting problem.
+
+---
+
+## 8. One-line architect rule
+
+> **Put intelligence where uncertainty exists, deterministic controls where the rules are known, and additional autonomy only where it earns its cost and risk.**
+
 ## Aug 13, 2026
 
 # Workflow or Agent? Set the Right Autonomy Boundary
