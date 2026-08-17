@@ -1,5 +1,367 @@
 # Some learnings for Claude Architect 
 
+## Aug 18, 2026
+
+# CLAUDE.md: Persistent Project Instructions, Not a Security Boundary
+
+## 1. Level
+
+**Foundation**
+
+Week 5 moves into **Claude Code and developer workflows**. The first architectural concept is how a team gives Claude Code durable project knowledge without repeatedly restating it in every session.
+
+---
+
+## 2. Today’s concept
+
+A Claude Code session starts with a fresh context window. To carry important project instructions across sessions, teams can place them in **`CLAUDE.md`** files. Claude Code reads those instructions as context and uses them to guide how it works in the repository. ([Claude Platform Docs][1])
+
+A project-level file might contain:
+
+```markdown
+# Build and test
+
+- Install dependencies with `npm ci`.
+- Run `npm test` before proposing a commit.
+- Run `npm run lint` after modifying TypeScript.
+
+# Architecture
+
+- HTTP handlers live under `src/api/handlers/`.
+- Business logic must remain outside controllers.
+- Do not call the database directly from route handlers.
+
+# Conventions
+
+- Use 2-space indentation.
+- New API endpoints require input validation.
+```
+
+The important architectural distinction is:
+
+> **`CLAUDE.md` influences Claude's behaviour; it does not enforce behaviour.**
+
+Anthropic's current documentation explicitly describes `CLAUDE.md` instructions as **context, not enforced configuration**. If an action must be blocked regardless of what Claude decides, use an enforcement mechanism such as permissions, managed settings, sandboxing, or an appropriate hook rather than relying on prose instructions. ([Claude Platform Docs][1])
+
+So:
+
+```text
+"Use our API naming convention"
+        ↓
+CLAUDE.md is appropriate
+
+"Claude must never modify production secrets"
+        ↓
+Enforce technically
+```
+
+This distinction connects directly to last week's autonomy lesson:
+
+> **Guidance belongs in context; hard constraints belong outside the model.**
+
+### Current Claude Code distinction
+
+Claude Code now documents two complementary cross-session mechanisms:
+
+* **`CLAUDE.md`** — instructions written by humans.
+* **Auto memory** — useful project learnings Claude records for itself.
+
+Both can influence future sessions, but neither should be confused with a deterministic security control. ([Claude Platform Docs][1])
+
+Today's lesson focuses only on the first: **human-authored project instructions**.
+
+---
+
+## 3. Why an architect cares
+
+Without durable project instructions, every developer may repeatedly tell Claude things such as:
+
+> “Use our repository pattern.”
+
+> “Don't put business logic in controllers.”
+
+> “Run this particular test suite.”
+
+> “Use our internal error wrapper.”
+
+That creates three problems.
+
+First, behaviour becomes dependent on what each developer remembers to mention.
+
+Second, valuable context disappears when a session ends.
+
+Third, architectural conventions become scattered through conversational history rather than existing as a maintainable team artifact.
+
+A well-designed `CLAUDE.md` shifts recurring knowledge from:
+
+```text
+developer memory → ad-hoc prompt
+```
+
+to:
+
+```text
+repository → shared project context
+```
+
+Project instructions can be committed to version control so the same repository guidance is shared across the team. Claude Code supports broader and narrower instruction scopes as well, including organisation-managed, user-level, project-level, and local project instructions. ([Claude Platform Docs][1])
+
+But there is an important cost.
+
+`CLAUDE.md` content consumes context. Anthropic recommends concise, specific instructions and currently suggests targeting **under roughly 200 lines per `CLAUDE.md` file**. Longer, contradictory, or overly broad instructions can reduce adherence and consume context that could otherwise be used for the actual task. ([Claude Platform Docs][1])
+
+The goal is therefore not:
+
+> “Document everything Claude could ever need.”
+
+It is:
+
+> **“Persist the small set of facts Claude should consistently know while working here.”**
+
+---
+
+## 4. Architect’s lens
+
+When deciding what belongs in persistent Claude Code instructions, ask three questions.
+
+### 1. Will this information matter repeatedly?
+
+Good candidates include:
+
+* build and test commands;
+* architectural boundaries;
+* project structure;
+* naming conventions;
+* required development practices;
+* repository-specific pitfalls.
+
+A one-off task such as:
+
+> “For today's migration, compare these two implementations”
+
+belongs in the task prompt, not permanent project instructions.
+
+### 2. Is this guidance or enforcement?
+
+Consider:
+
+> “Always run the unit tests after changing billing logic.”
+
+That is useful behavioural guidance.
+
+Now consider:
+
+> “Claude must never execute `terraform destroy`.”
+
+That should not depend on Claude remembering and obeying a sentence. Use technical permission controls or other deterministic enforcement.
+
+Anthropic's current Claude Code guidance explicitly separates managed settings used for restrictions such as denied tools, sandboxing, and environment controls from `CLAUDE.md` instructions used to shape behaviour. ([Claude Platform Docs][1])
+
+### 3. Does everyone need this instruction all the time?
+
+If a rule applies only to one directory or file type, loading it for every task wastes context.
+
+Claude Code supports project rules under `.claude/rules/`, including path-specific rules that can apply only when Claude works with matching files. Anthropic recommends using such scoped mechanisms when instructions become specialised rather than placing everything in one increasingly large `CLAUDE.md`. ([Claude Platform Docs][1])
+
+Think:
+
+```text
+Always relevant
+      ↓
+CLAUDE.md
+
+Relevant only to API files
+      ↓
+path-scoped rule
+
+Relevant to one task
+      ↓
+task prompt
+```
+
+---
+
+## 5. Real-life example
+
+A company has a large payment-processing repository.
+
+Developers repeatedly encounter a problem: Claude Code implements features successfully, but sometimes bypasses the company's architectural conventions.
+
+For example, it occasionally:
+
+* writes database queries directly in HTTP handlers;
+* forgets to run payment-specific integration tests;
+* creates new error formats instead of using the shared error model.
+
+One proposed solution is to prepend a huge 40-page engineering handbook to every Claude Code task.
+
+That would technically provide the information, but most of it would be irrelevant to most changes.
+
+A better project `CLAUDE.md` might contain:
+
+```markdown
+# Payment service architecture
+
+- HTTP handlers validate input and call service-layer functions.
+- Database access occurs only through repository classes.
+- Use the existing `PaymentError` hierarchy for service errors.
+
+# Verification
+
+After changing payment processing:
+- run `npm run test:payments`
+- run `npm run lint`
+
+# Key locations
+
+- API handlers: `src/api/`
+- services: `src/services/`
+- repositories: `src/repositories/`
+```
+
+Now imagine there are additional PCI-specific requirements only for:
+
+```text
+src/payment-card/**
+```
+
+Rather than adding another hundred lines to the global project instructions, the team can scope specialised guidance to those paths.
+
+Finally, suppose security requires Claude Code to be **technically prevented** from reading a production credential directory.
+
+That restriction does **not** belong only in `CLAUDE.md`.
+
+The architecture becomes:
+
+```text
+CLAUDE.md
+   ↓
+How Claude should work
+
+Scoped project rules
+   ↓
+Instructions relevant to particular code
+
+Permission / sandbox controls
+   ↓
+What Claude is actually allowed to do
+```
+
+That is a much stronger separation of responsibilities.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A development organisation uses Claude Code across a shared repository.
+
+Engineers repeatedly remind Claude that:
+
+* business logic belongs in service classes;
+* all API changes require the API test suite;
+* controllers must use the company's standard error format.
+
+The organisation also requires Claude to be **unable to modify** files under a sensitive deployment directory.
+
+Which architecture is the best fit?
+
+**A.** Put all four requirements in `CLAUDE.md` and rely on Claude to obey them.
+
+**B.** Put recurring development conventions in project-level `CLAUDE.md`, and enforce access to the sensitive directory through technical permission controls.
+
+**C.** Ask every developer to paste the instructions into each session so Claude receives the freshest copy.
+
+**D.** Remove project instructions and give Claude broader autonomy so it can infer the architecture from the codebase.
+
+---
+
+## 7. Spot the clue
+
+The decisive wording is:
+
+> **“Repeatedly remind Claude”**
+
+That suggests durable project context.
+
+But then:
+
+> **“Unable to modify”**
+
+That is stronger than behavioural guidance.
+
+The question contains **two different control types**:
+
+```text
+how Claude should behave
+versus
+what Claude is allowed to do
+```
+
+Do not solve both with the same mechanism.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **B**
+
+The three recurring development conventions are good candidates for `CLAUDE.md`: they are stable, project-wide facts that Claude should know in every relevant session. Anthropic recommends using project instructions for items such as coding standards, architectural decisions, build/test commands, and common workflows. ([Claude Platform Docs][1])
+
+The sensitive deployment directory is different. Anthropic explicitly states that `CLAUDE.md` shapes behaviour but is not an enforcement layer; managed settings and permission controls are appropriate where restrictions must hold regardless of Claude's reasoning. ([Claude Platform Docs][1])
+
+### Why A is tempting but weaker
+
+A single file appears simpler.
+
+And Claude may follow:
+
+```markdown
+Never modify deploy/prod/
+```
+
+most of the time.
+
+But “most of the time” does not satisfy:
+
+> **“must be unable.”**
+
+A security boundary cannot depend solely on natural-language compliance.
+
+### Why C is weaker
+
+Repeating stable conventions manually wastes developer effort and creates inconsistency between sessions. Persistent project instructions exist specifically to preserve reusable context across Claude Code sessions. ([Claude Platform Docs][1])
+
+### What additional fact could change the decision?
+
+Suppose the “sensitive directory” merely contained generated files that developers preferred Claude not to edit directly, but modifying them accidentally would have no meaningful security or operational consequence.
+
+Then an instruction such as:
+
+```markdown
+Do not edit generated files under `dist/`.
+Change their source files instead.
+```
+
+could reasonably live in `CLAUDE.md`.
+
+The distinction is consequence:
+
+* **development convention** → instruction;
+* **hard security or safety boundary** → deterministic enforcement.
+
+---
+
+## 9. One-line architect rule
+
+> **Put recurring project knowledge in `CLAUDE.md`; put non-negotiable restrictions in controls Claude cannot override.**
+
+---
+
+[1]: https://docs.claude.com/en/docs/claude-code/memory "How Claude remembers your project - Claude Code Docs"
+
+
 ## Aug 14, 2026
 
 # From Claude Call to Bounded Agent Architecture
