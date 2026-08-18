@@ -2,6 +2,378 @@
 
 ## Aug 18, 2026
 
+# Claude Code Hooks
+Automate What Must Happen at a Known Lifecycle Point
+
+## 1. Level
+
+**Foundation**
+
+Yesterday’s lesson established that `CLAUDE.md` is persistent **guidance**: it tells Claude how the project expects work to be done.
+
+Today’s lesson adds the next layer:
+
+> **A hook runs something automatically when a defined Claude Code event occurs.**
+
+That makes hooks useful when you do not want to rely on Claude remembering to perform a repeatable engineering action.
+
+---
+
+## 2. Today’s concept
+
+Claude Code exposes lifecycle events such as:
+
+* `SessionStart`
+* `PreToolUse`
+* `PostToolUse`
+* `PostToolUseFailure`
+* `Stop`
+
+Hooks can attach executable logic to those events. For example, a `PostToolUse` hook can run a formatter after Claude edits a file, while a `PreToolUse` hook can validate or block a proposed tool action before it executes. ([Claude][1])
+
+The basic pattern is:
+
+```text
+Claude intends or completes an action
+              |
+              v
+        Lifecycle event
+              |
+              v
+          Hook runs
+              |
+      +-------+--------+
+      |                |
+   continue      block / feedback
+```
+
+Anthropic describes hooks as providing deterministic control because the configured action is triggered by the lifecycle event rather than depending on the model to decide whether it should run. ([Claude][1])
+
+Compare three mechanisms:
+
+| Requirement                                                              | Best starting mechanism |
+| ------------------------------------------------------------------------ | ----------------------- |
+| “Our services use repository classes.”                                   | `CLAUDE.md`             |
+| “Run the formatter after every file edit.”                               | Hook                    |
+| “This process must never have filesystem access outside this directory.” | Permissions / sandbox   |
+
+The important distinction is:
+
+> **Instructions tell Claude what it should do. Hooks automate what should happen at a particular event. Permissions constrain what it is allowed to do.**
+
+Those mechanisms can work together rather than replacing one another.
+
+---
+
+## 3. Why an architect cares
+
+Imagine a team puts this in `CLAUDE.md`:
+
+```markdown
+After editing JavaScript files, always run Prettier.
+```
+
+Claude may follow it.
+
+But formatting is deterministic. The team does not actually need Claude to reason:
+
+> “Do I think formatting is appropriate this time?”
+
+A `PostToolUse` hook can run the formatter automatically after matching `Edit` or `Write` operations. Anthropic’s current hook guide uses this exact general pattern: a post-tool hook can trigger formatting immediately after Claude changes files. ([Claude][1])
+
+This improves architecture because it separates:
+
+```text
+Model judgment
+from
+Mechanical engineering policy
+```
+
+Hooks are useful for things such as:
+
+* formatting;
+* audit logging;
+* deterministic validation;
+* notifications;
+* environment setup;
+* injecting known context at specific lifecycle stages;
+* rejecting defined classes of tool operation before execution. ([Claude][1])
+
+But adding a hook also introduces operational concerns. The hook itself is software: it can fail, time out, contain bugs, or perform side effects. Architects therefore should use hooks for **specific, testable lifecycle automation**, not turn every development convention into a complicated hook framework.
+
+---
+
+## 4. Architect’s lens
+
+Ask these three questions.
+
+### 1. Does the requirement depend on judgment?
+
+Suppose the requirement is:
+
+> “After Claude edits TypeScript, run the formatter.”
+
+There is almost no useful reasoning involved.
+
+A deterministic hook is appropriate.
+
+Now consider:
+
+> “After editing the architecture, decide whether the implementation remains maintainable.”
+
+That requires semantic judgment.
+
+A simple shell hook cannot reliably determine architectural maintainability. Claude Code also supports prompt- and agent-based hooks for model-driven checks, but those reintroduce model judgment and its associated cost and variability; Anthropic currently recommends command hooks for production workflows where deterministic behaviour is appropriate, while agent hooks remain experimental. ([Claude][1])
+
+### 2. Must the action happen before or after execution?
+
+This distinction is critical.
+
+```text
+PreToolUse
+    ↓
+Inspect proposed action
+    ↓
+Allow / deny / modify before execution
+```
+
+versus:
+
+```text
+Tool executes
+    ↓
+PostToolUse
+    ↓
+Inspect result / format / log / provide feedback
+```
+
+A `PostToolUse` hook cannot undo a command or file modification that already happened. Anthropic explicitly warns that post-tool hooks run after the action has executed; if prevention is required, the control must occur before execution. ([Claude][1])
+
+That timing clue can decide an architectural question immediately.
+
+### 3. Is the hook sufficient as the hard control?
+
+Sometimes yes—but not automatically.
+
+Claude Code currently allows a `PreToolUse` hook to deny a tool call even when permissive permission modes are active, so hooks can enforce strong organisational policy in that path. At the same time, hooks and permissions are complementary: a hook cannot use an `allow` result to override stricter permission rules. ([Claude][1])
+
+For security-sensitive boundaries, prefer layered controls:
+
+```text
+Sandbox / permissions
+        +
+PreToolUse policy check
+        +
+Audit logging
+```
+
+rather than assuming one mechanism covers every threat model.
+
+---
+
+## 5. Real-life example
+
+A payments engineering team uses Claude Code in a repository containing database migrations.
+
+They have three requirements.
+
+### Requirement A
+
+All Python files modified by Claude must be formatted.
+
+No judgment is necessary.
+
+The team configures:
+
+```text
+PostToolUse
+matcher: Edit | Write
+        ↓
+Run formatter on changed Python file
+```
+
+Claude does not have to remember this step.
+
+### Requirement B
+
+Claude must not execute a migration command containing:
+
+```text
+--environment production
+```
+
+without following the company’s controlled deployment path.
+
+The team uses a `PreToolUse` hook targeting Bash operations.
+
+Before the command executes:
+
+```text
+Claude proposes command
+        ↓
+PreToolUse hook
+        ↓
+Inspect command
+   /           \
+safe          forbidden
+ |               |
+continue       block
+```
+
+When blocked, the hook gives Claude a reason so it can choose a safer approach. Claude Code’s official hook guidance demonstrates this pattern for protected file edits: the hook runs before the tool and can return a denial that prevents execution while feeding the reason back to Claude. ([Claude][1])
+
+### Requirement C
+
+Claude must not be able to read production credentials.
+
+The team does **not** depend solely on a hook.
+
+It configures the execution environment and permissions so the production secret location is inaccessible in the first place.
+
+The complete design is therefore:
+
+```text
+CLAUDE.md
+   ↓
+"Use our approved migration workflow."
+
+PreToolUse hook
+   ↓
+Reject recognisable prohibited migration commands.
+
+Permissions / sandbox
+   ↓
+Production credentials are unavailable regardless.
+```
+
+Each mechanism solves a different problem.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A software organisation uses Claude Code across hundreds of repositories.
+
+A repository has these requirements:
+
+* Claude should follow the team’s service-layer architecture.
+* Every file Claude writes must automatically undergo formatting.
+* A dangerous database command must be rejected **before it runs**.
+* The team wants the simplest architecture that does not rely unnecessarily on model memory.
+
+Which design is the best fit?
+
+**A.** Put all three rules in `CLAUDE.md` and instruct Claude to check them before every action.
+
+**B.** Put architectural guidance in `CLAUDE.md`, use a `PostToolUse` hook for formatting, and use a `PreToolUse` hook to reject the dangerous command.
+
+**C.** Use a `PostToolUse` hook for both formatting and database-command rejection.
+
+**D.** Ask a second Claude instance to review every action before the first instance executes it.
+
+---
+
+## 7. Spot the clue
+
+Three phrases reveal the mechanism.
+
+> **“Follow the team’s architecture.”**
+
+That is behavioural guidance.
+
+> **“Automatically undergo formatting.”**
+
+That is deterministic post-action automation.
+
+> **“Rejected before it runs.”**
+
+That requires a pre-execution control.
+
+The question is really testing whether you recognise that these requirements occur at **different control layers and lifecycle moments**.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **B**
+
+`CLAUDE.md` is appropriate for recurring architecture guidance because Claude needs that information while reasoning about implementation.
+
+Formatting does not require reasoning, so a `PostToolUse` hook can run it automatically after matching file edits.
+
+The database command must be stopped before execution, so a `PreToolUse` hook is the appropriate lifecycle point. Claude Code currently allows `PreToolUse` hooks to block tool calls before they run. ([Claude][1])
+
+### Why A is tempting but weaker
+
+It is simple to put everything in one project instruction file.
+
+But then Claude itself remains responsible for remembering to:
+
+* run the formatter;
+* inspect its own command;
+* comply with the prohibition.
+
+The first two are deterministic operations that the surrounding system can perform more reliably.
+
+The principle is the same one we have used throughout the course:
+
+> Do not spend model reasoning on a rule ordinary software can enforce.
+
+### Why C is weaker
+
+A `PostToolUse` hook runs **after** the database command has executed.
+
+At that point it could:
+
+* log the event;
+* report the problem;
+* give Claude corrective feedback;
+
+but it cannot undo the database side effect. Anthropic’s documentation explicitly notes that post-tool hooks cannot reverse actions that already occurred. ([Claude][1])
+
+### What additional fact could change the decision?
+
+Suppose the requirement were instead:
+
+> “After every database command, record the command, execution time, and result in an audit system.”
+
+Now a post-execution hook is appropriate because the architecture needs information that exists **after** execution.
+
+The correct hook is driven by the control point:
+
+```text
+Need to prevent?
+    → before
+
+Need to inspect or react to the result?
+    → after
+```
+
+---
+
+## 9. One-line architect rule
+
+> **Use Claude for judgment, hooks for repeatable lifecycle automation, and place the control before the action whenever prevention matters.**
+
+---
+
+## 10. Source basis
+
+Current official **Claude Code Hooks** documentation describes hooks as lifecycle-triggered automation that can provide deterministic control instead of relying on the model to choose whether an action occurs. It documents events including `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `SessionStart`, and `Stop`. ([Claude][1])
+
+Official Anthropic guidance shows `PostToolUse` for automatic formatting and `PreToolUse` for blocking protected operations before execution, and explicitly notes that post-tool hooks cannot undo actions that have already occurred. ([Claude][1])
+
+Current documentation also states that `PreToolUse` denial can tighten restrictions even under permissive Claude Code permission modes, while an `allow` hook cannot override stricter permission rules. Prompt- and agent-based hooks are available for judgment-based checks; agent hooks are currently experimental, with command hooks preferred for deterministic production automation. ([Claude][1])
+
+The scenario above is **practice-derived from current official Claude Code architectural guidance** and is not presented as an authentic certification question.
+
+[1]: https://code.claude.com/docs/en/hooks-guide "Automate actions with hooks - Claude Code Docs"
+
+
+## Aug 17, 2026
+
 # CLAUDE.md: Persistent Project Instructions, Not a Security Boundary
 
 ## 1. Level
