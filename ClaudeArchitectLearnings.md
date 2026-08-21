@@ -1,5 +1,389 @@
 # Some learnings for Claude Architect 
 
+## Aug 19, 2026
+
+# Sandboxing: Limit the Blast Radius, Not Just the Command
+
+## 1. Level
+
+**Foundation**
+
+This Thursday extension connects the last three Claude Code controls: `CLAUDE.md`, hooks, and permissions. Today’s architectural question is deeper:
+
+> **What if an allowed command itself does something you did not expect?**
+
+That is where **sandboxing** becomes important.
+
+---
+
+## 2. Today’s concept
+
+Permission rules decide **whether Claude Code may initiate an action**.
+
+A sandbox constrains **what the resulting process can actually reach while it runs**.
+
+That distinction matters.
+
+Suppose Claude is allowed to execute:
+
+```text
+npm test
+```
+
+A permission rule can determine that `npm test` is an approved command.
+
+But `npm test` may itself execute:
+
+```text
+npm test
+   ↓
+package script
+   ↓
+test runner
+   ↓
+plugin
+   ↓
+child process
+```
+
+A permission system reasons about the requested action. A sandbox places an operating-system boundary around the executing command and its child processes. Claude Code’s built-in sandboxed Bash tool currently provides filesystem and network isolation using OS-level mechanisms. ([Claude][1])
+
+The Foundation distinction is:
+
+| Mechanism       | Main question                                                 |
+| --------------- | ------------------------------------------------------------- |
+| `CLAUDE.md`     | **How should Claude behave?**                                 |
+| Hook            | **What should automatically happen at this lifecycle point?** |
+| Permission rule | **May Claude initiate this action?**                          |
+| Sandbox         | **What can the executing process actually access?**           |
+
+These are complementary controls, not competing alternatives. Anthropic’s current documentation explicitly describes permissions and sandboxing as defense-in-depth layers: permissions apply across Claude Code tools, while the built-in Bash sandbox provides OS-level filesystem and network enforcement for Bash commands and their child processes. ([Claude][2])
+
+A useful rule is:
+
+> **Permissions constrain intent; sandboxing constrains impact.**
+
+---
+
+### Current Claude Code update
+
+Anthropic’s current documentation now distinguishes several isolation choices rather than treating “sandboxing” as one thing. These include the built-in **sandboxed Bash tool**, a **sandbox runtime** that isolates the whole Claude Code process, development/custom containers, virtual machines, and the isolated environment used by Claude Code on the web. ([Claude][3])
+
+For today, remember only the architectural distinction:
+
+```text
+Sandboxed Bash
+      ↓
+isolates Bash commands + child processes
+
+Broader isolated runtime / container / VM
+      ↓
+can isolate more or all of the Claude Code environment
+```
+
+Choose the isolation boundary from the threat model rather than automatically selecting the heaviest option. ([Claude][3])
+
+---
+
+## 3. Why an architect cares
+
+Last session, you learned that repeated safe commands can be **allowed** so developers are not constantly interrupted by approval prompts.
+
+That creates an important question:
+
+> If we allow more autonomy, how do we keep a mistake from becoming a machine-wide compromise?
+
+Consider a repository containing a dependency whose install script has been compromised.
+
+Claude might legitimately execute:
+
+```text
+npm install
+```
+
+The problem may not be Claude’s decision at all.
+
+The package installation could trigger malicious code that attempts to:
+
+* inspect files outside the project;
+* read developer credentials;
+* modify shell configuration;
+* connect to an attacker-controlled server.
+
+Permission rules alone are not the complete boundary because the approved process can create subprocesses that do much more than its command name suggests.
+
+Claude Code’s sandbox addresses this by restricting filesystem and network access at the operating-system level. Anthropic specifically recommends combining filesystem and network isolation because filesystem-only protection can still permit exfiltration, while network-only protection can still leave sensitive local resources exposed. ([Claude][1])
+
+This becomes particularly important as you increase autonomy.
+
+The architectural relationship is:
+
+```text
+More autonomous execution
+          ↓
+Less human inspection per command
+          ↓
+Greater need for bounded execution
+```
+
+Sandboxing can therefore improve **both productivity and security**: routine commands can operate more freely inside a predefined boundary instead of repeatedly interrupting the developer for permission. ([Claude][1])
+
+---
+
+## 4. Architect’s lens
+
+### 1. What resources does the task genuinely need?
+
+A test process may need:
+
+* the repository;
+* a temporary directory;
+* perhaps a package registry;
+* perhaps a local test database.
+
+It probably does not need:
+
+* `~/.ssh`;
+* unrelated repositories;
+* arbitrary internet destinations;
+* production credentials.
+
+Define the execution boundary around the **task’s required resources**, not around everything available on the developer’s machine.
+
+Claude Code’s current sandbox configuration supports filesystem and network restrictions, including specific writable paths and permitted network domains. ([Claude][1])
+
+### 2. Am I controlling the command or its effects?
+
+This is today’s diagnostic question.
+
+If the requirement is:
+
+> “Claude may never run `terraform destroy`.”
+
+A permission deny rule or pre-execution control directly addresses the prohibited action.
+
+If the requirement is:
+
+> “Whatever build command Claude runs must not be able to read SSH credentials or contact arbitrary servers.”
+
+That is an **execution-boundary problem**.
+
+Use sandboxing or stronger environment isolation.
+
+### 3. How much isolation does the threat model require?
+
+The built-in sandboxed Bash tool is relatively lightweight, but it applies specifically to Bash commands and their child processes. Other Claude Code tools such as `Read`, `Edit`, `WebFetch`, and MCP are governed through their own permission model rather than becoming arbitrary programs inside that Bash sandbox. ([Claude][2])
+
+If the organisation needs isolation around the entire Claude Code process—including broader tools, MCP servers, hooks, or untrusted workloads—Anthropic’s current guidance provides stronger choices such as its sandbox runtime, containers, or VMs. ([Claude][3])
+
+Foundation reasoning therefore follows:
+
+> **Protect only the command when that is sufficient; isolate the whole environment when the threat model requires it.**
+
+---
+
+## 5. Real-life example
+
+A software company automates dependency upgrades with Claude Code.
+
+Claude must:
+
+1. inspect outdated dependencies;
+2. modify package files;
+3. install dependencies;
+4. execute tests;
+5. fix compatibility failures;
+6. prepare a pull request.
+
+The workload is highly repetitive, so requiring a human to approve every package-manager command defeats much of the automation benefit.
+
+But the organisation has another constraint:
+
+> Third-party dependencies and their install/build scripts cannot be assumed trustworthy.
+
+### Weak architecture
+
+The team configures:
+
+```text
+Allow Bash(npm *)
+Allow Bash(node *)
+```
+
+Claude can now work efficiently.
+
+However, a package script spawned by an allowed `npm` command may perform operations beyond what the developer intended.
+
+### Stronger architecture
+
+The organisation combines policy and containment:
+
+```text
+Claude Code
+    │
+    ├── permissions
+    │      └── approved development operations
+    │
+    └── sandbox
+           ├── repository writable
+           ├── approved temporary space writable
+           ├── sensitive home paths unavailable
+           └── network restricted to required destinations
+```
+
+Claude can run tests repeatedly without waiting for human approval, but a subprocess launched by a dependency remains inside the operating-system boundary. Claude Code’s sandbox is specifically designed so child processes inherit the same filesystem and network restrictions. ([Claude][1])
+
+The company can still retain explicit permission controls for actions such as:
+
+```text
+git push
+```
+
+or:
+
+```text
+deployment command
+```
+
+because a sandbox does not answer the business question:
+
+> “Should this action occur?”
+
+It answers:
+
+> “If it runs, what can the process reach?”
+
+This is **defense in depth**, not duplication.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A development organisation wants Claude Code to autonomously run build and test commands for a third-party codebase.
+
+Requirements include:
+
+* Frequent build/test commands should not require repeated developer approval.
+* Build scripts may spawn arbitrary child processes.
+* The codebase and its dependencies are not fully trusted.
+* Commands must not read unrelated files from the developer’s home directory.
+* Commands must not connect to arbitrary external internet hosts.
+
+Which architecture best satisfies the requirements?
+
+**A.** Allow the required Bash commands using permission rules and rely on the command names to constrain what their child processes can do.
+
+**B.** Run approved development commands inside a sandbox with appropriate filesystem and network boundaries, while retaining permission rules for actions requiring separate authorization.
+
+**C.** Put instructions in `CLAUDE.md` telling Claude not to allow build scripts to access sensitive resources.
+
+**D.** Require a developer to approve every Bash invocation, because human approval makes filesystem and network isolation unnecessary.
+
+---
+
+## 7. Spot the clue
+
+Three phrases should drive the answer:
+
+> **“May spawn arbitrary child processes.”**
+
+The visible command is not the entire execution path.
+
+> **“Dependencies are not fully trusted.”**
+
+The risk may come from executed code rather than Claude’s reasoning.
+
+> **“Must not read … / must not connect.”**
+
+Those are **resource-boundary requirements**.
+
+Think OS-level containment, not merely prompting or command approval.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **B**
+
+Sandboxing directly addresses the failure mode in the scenario.
+
+The organisation can permit routine development commands while using operating-system controls to restrict the files and network destinations those commands and their descendants can reach. Claude Code’s current sandbox is specifically intended to reduce permission prompts while maintaining filesystem and network boundaries around Bash execution. ([Claude][1])
+
+Permission rules should remain alongside it because they solve another problem: whether Claude Code should be permitted to initiate a particular operation at all. Anthropic explicitly recommends using permissions and sandboxing together as complementary controls. ([Claude][2])
+
+### Why A is tempting but weaker
+
+The organisation could carefully allow:
+
+```text
+npm test
+npm install
+```
+
+while denying obviously dangerous commands.
+
+But an allowed command can invoke another script or binary whose behaviour is not apparent from the original command string.
+
+The sandbox controls the **running process**, so its restrictions continue to apply even when the command’s actual behaviour is more expansive than its name suggests. ([Claude][2])
+
+### Why D is weaker
+
+Human approval answers:
+
+> “Do I agree to execute this command?”
+
+It does not prove:
+
+> “Every child process created by this command will behave safely.”
+
+Moreover, repeatedly asking users to approve routine commands can create approval fatigue, one of the problems Anthropic explicitly identifies sandboxing as helping to reduce. ([Claude][1])
+
+### What additional fact could change the decision?
+
+Suppose Claude Code were already running inside a disposable VM that:
+
+* contained no user home directory or host credentials;
+* held only a temporary checkout;
+* exposed only approved network destinations;
+* was destroyed after the task.
+
+Then much of the required blast-radius containment would already be provided by the **outer VM boundary**.
+
+The team could reasonably choose more permissive Claude Code permissions inside that environment, depending on what residual risks remained. Anthropic’s current sandbox guidance explicitly treats containers and VMs as stronger full-environment isolation choices when the threat model requires separation beyond individual Bash commands. ([Claude][3])
+
+The architect should therefore avoid stacking controls mechanically.
+
+Ask:
+
+> **Where is the effective security boundary already enforced?**
+
+Then add only the controls needed to close the remaining gaps.
+
+---
+
+## 9. One-line architect rule
+
+> **Use permissions to decide whether an action may start; use sandboxing to bound what the executing process can actually touch.**
+
+---
+
+## 10. Source basis
+
+Current official **Claude Code sandboxing documentation**, updated in August 2026, describes filesystem and network isolation, OS-level enforcement for Bash commands and child processes, reduced approval fatigue, and configuration of permitted filesystem and network boundaries. ([Claude][1])
+
+Current official **Claude Code permissions documentation** explicitly distinguishes permissions from sandboxing and recommends the two as complementary defense-in-depth layers: permissions govern Claude Code tool access, while sandboxing constrains executing Bash processes at the OS level. ([Claude][2])
+
+Anthropic’s current **sandbox-environment guidance** also distinguishes the built-in per-command Bash sandbox from broader isolation options including the sandbox runtime, containers, virtual machines, and Claude Code’s isolated web execution environment. ([Claude][3])
+
+The exam-style question is **practice-derived from current official Claude Code architectural guidance** and is not an authentic certification question.
+
+[1]: https://code.claude.com/docs/en/sandboxing?utm_source=chatgpt.com "Configure the sandboxed Bash tool - Claude Code Docs"
+[2]: https://code.claude.com/docs/en/permissions?utm_source=chatgpt.com "Configure permissions - Claude Code Docs"
+[3]: https://code.claude.com/docs/en/sandbox-environments?utm_source=chatgpt.com "Choose a sandbox environment - Claude Code Docs"
+
+
 ## Aug 18, 2026
 
 # Claude Code Hooks
