@@ -1,5 +1,416 @@
 # Some learnings for Claude Architect 
 
+## Aug 25, 2026
+
+## Prompt as Contract: Make the Task, Context, and Constraints Explicit
+
+## 1. Level
+
+**Foundation**
+
+Week 6 begins the prompting and structured-output section. The first principle is deliberately simple:
+
+> **A production prompt should behave like a specification, not a hint.**
+
+Anthropic’s current prompting guidance starts with the same idea: Claude performs better when instructions are **clear, explicit, and specific about the required output and constraints**. When order or completeness matters, Anthropic recommends expressing the work as explicit steps rather than expecting Claude to infer the process. ([Claude Platform][1])
+
+---
+
+## 2. Today’s concept
+
+Compare these two prompts for a customer-support application.
+
+### Weak prompt
+
+```text
+Review this complaint and give us a good response.
+```
+
+Claude has to infer:
+
+* what “review” means;
+* whether it should answer the customer or advise the support agent;
+* what evidence it may use;
+* whether it may assume missing facts;
+* what constitutes a “good” response;
+* what format downstream software expects.
+
+Now consider:
+
+```text
+You are assisting a customer-support agent.
+
+Task:
+Determine whether the customer's refund request is supported
+by the supplied order history and refund policy.
+
+Requirements:
+1. Use only facts contained in the supplied context.
+2. Identify the applicable policy condition.
+3. State whether the available evidence supports the refund.
+4. If required evidence is missing, say what is missing rather
+   than assuming it.
+5. Provide a short recommendation for the human agent.
+
+Do not issue the refund or tell the customer it has been approved.
+```
+
+This prompt does not necessarily contain more *intelligence*.
+
+It contains less **ambiguity**.
+
+A useful prompt specification separates four things:
+
+```text
+ROLE
+Who should Claude act as?
+
+TASK
+What outcome should Claude produce?
+
+CONTEXT
+What evidence or situation should it reason over?
+
+CONSTRAINTS / SUCCESS CONDITIONS
+What must or must not be true of the result?
+```
+
+You do not need these literal headings in every prompt. The architectural principle is that these concerns should be **explicitly represented rather than left implicit**.
+
+---
+
+## 3. Why an architect cares
+
+Poor prompting often looks like a model-quality problem.
+
+Suppose an AI procurement assistant sometimes:
+
+* recommends suppliers that violate policy;
+* omits important trade-offs;
+* makes assumptions about missing information.
+
+A team might immediately propose:
+
+> “Move to a more powerful Claude model.”
+
+But first ask:
+
+> **Did the application ever tell Claude what constitutes an acceptable answer?**
+
+Anthropic’s prompt-engineering overview recommends establishing **success criteria and a way to evaluate them before repeatedly tuning the prompt**. It also explicitly notes that prompt engineering is not the correct solution to every failure; some problems are better addressed by model selection or other architectural changes. ([Claude Platform][2])
+
+This gives architects an important diagnostic sequence:
+
+```text
+Observed bad result
+       ↓
+Was the required behaviour explicit?
+       ↓
+Was the necessary context supplied?
+       ↓
+Can the failure be measured?
+       ↓
+Only then tune prompts / examples / model choice
+```
+
+Without this discipline, teams accumulate enormous prompts containing increasingly desperate phrases such as:
+
+```text
+IMPORTANT
+VERY IMPORTANT
+ABSOLUTELY DO NOT
+PLEASE DOUBLE CHECK
+```
+
+That is often a symptom that the actual task contract has never been designed clearly.
+
+---
+
+## 4. Architect’s lens
+
+For every production prompt, ask these three questions.
+
+### 1. What does success actually mean?
+
+Do not write:
+
+> “Produce a high-quality architecture recommendation.”
+
+Translate “high quality” into observable requirements:
+
+```text
+- Address every mandatory requirement.
+- Identify assumptions separately from confirmed facts.
+- Explain the major cost, security, and operability trade-offs.
+- Do not recommend a component without explaining why it is needed.
+```
+
+This makes the prompt easier to test later.
+
+### 2. What is Claude allowed to assume?
+
+Many hallucination problems are partly **contract problems**.
+
+If the task uses incomplete enterprise data, say what Claude should do when evidence is missing:
+
+```text
+If a required fact is absent, identify it as unknown.
+Do not infer a customer requirement solely because it is common
+industry practice.
+```
+
+That is stronger than merely saying:
+
+```text
+Don't hallucinate.
+```
+
+The first instruction defines the required behaviour at the uncertainty boundary.
+
+### 3. Which requirements belong in the prompt—and which belong elsewhere?
+
+Recall the architecture principle from previous weeks.
+
+A prompt can say:
+
+> “Do not approve payments.”
+
+But if Claude technically possesses an unrestricted payment tool, the prompt should not be your only safety mechanism.
+
+Likewise:
+
+```text
+"Return exactly 10 records"
+```
+
+may belong in the prompt, but the application should still validate the result programmatically if exactly ten is a hard downstream requirement.
+
+A useful separation is:
+
+```text
+Semantic behaviour
+      ↓
+Prompt
+
+Machine-verifiable requirement
+      ↓
+Application validation
+
+Security / authorization boundary
+      ↓
+Deterministic controls
+```
+
+Prompting is part of the architecture, not the entire architecture.
+
+---
+
+## 5. Real-life example
+
+A consulting organisation uses Claude to analyse customer discovery notes and draft solution recommendations.
+
+The initial prompt is:
+
+```text
+Analyse these notes and propose a technical solution.
+```
+
+Reviews reveal three recurring problems.
+
+Claude sometimes:
+
+1. treats salesperson suggestions as confirmed customer requirements;
+2. fills gaps using common industry assumptions;
+3. proposes technically impressive components without explaining why they are required.
+
+The team considers adding more examples immediately.
+
+Instead, the architect first improves the **task contract**:
+
+```text
+Role:
+You are a solution architect analysing customer discovery evidence.
+
+Goal:
+Produce a preliminary solution recommendation based only on the
+supplied discovery material.
+
+Evidence rules:
+- Distinguish confirmed customer requirements from suggestions,
+  assumptions, and unresolved questions.
+- Do not convert a salesperson's proposed solution into a customer
+  requirement unless the customer explicitly confirmed it.
+- Do not invent missing requirements.
+
+Architecture rules:
+- Recommend the simplest architecture that satisfies confirmed needs.
+- For every major component, state which requirement justifies it.
+- Identify significant cost, security, integration, and operational
+  trade-offs.
+
+If critical information is missing:
+List the missing information and explain what architectural decision
+depends on it.
+```
+
+Notice what changed.
+
+The model was not simply told:
+
+> “Be more accurate.”
+
+The architect identified **specific failure modes** and converted them into explicit decision rules.
+
+This also makes evaluation much easier later.
+
+A reviewer can test:
+
+```text
+Did Claude distinguish confirmed facts from assumptions?
+Did every major component map to a requirement?
+Did it invent any unsupported requirement?
+```
+
+The prompt has become testable.
+
+That is the transition from **prompt writing** to **prompt architecture**.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A company uses Claude to review enterprise security questionnaires.
+
+Reviewers complain that Claude sometimes provides confident answers when the supplied documentation does not contain enough evidence.
+
+The existing prompt says:
+
+```text
+Answer the questionnaire accurately using the supplied security documents.
+```
+
+The company wants the **simplest first improvement**.
+
+What should the architect do?
+
+**A.** Add an orchestrator that asks several security-specialist agents to answer every question independently.
+
+**B.** Increase `max_tokens` so Claude has more room to explain uncertain answers.
+
+**C.** Explicitly instruct Claude to answer only from supplied evidence, distinguish supported answers from unknowns, and identify the missing evidence required for unresolved questions.
+
+**D.** Ask Claude to assign itself a confidence score after every answer.
+
+---
+
+## 7. Spot the clue
+
+The decisive condition is:
+
+> **“The supplied documentation does not contain enough evidence.”**
+
+The problem is not primarily answer length, task decomposition, or even confidence estimation.
+
+The existing prompt never defines what Claude should do **when evidence is insufficient**.
+
+That missing uncertainty rule is the first thing to fix.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **C**
+
+Anthropic recommends giving Claude clear and explicit instructions, including the desired output behaviour and relevant constraints. Here, the architectural requirement is:
+
+```text
+Evidence exists
+     ↓
+answer from evidence
+
+Evidence missing
+     ↓
+say unknown + identify required evidence
+```
+
+Making this contract explicit directly targets the observed failure. ([Claude Platform][1])
+
+It also creates behaviour that can later be evaluated objectively: unsupported confident answers become a measurable failure condition.
+
+### Why D is tempting but weaker
+
+Confidence scoring appears to address uncertainty.
+
+But Claude could still produce:
+
+```text
+Answer: Yes
+Confidence: 72%
+```
+
+without adequate evidence.
+
+A confidence score describes the model’s expressed certainty; it does not enforce the evidence boundary.
+
+The stronger requirement is:
+
+> **No supporting evidence → do not convert uncertainty into a factual answer.**
+
+### Why A is weaker
+
+Multiple agents might improve some difficult analyses, but nothing in the scenario indicates that the task requires dynamic decomposition.
+
+Adding several model calls would increase cost and latency before fixing the simpler underlying problem: **the task specification is incomplete**.
+
+This follows Anthropic’s broader guidance to start with the simplest approach and introduce additional complexity only when needed. ([Claude Platform][2])
+
+### What additional fact could change the decision?
+
+Suppose the prompt already clearly required evidence-grounded answers, and evaluation showed that Claude still regularly missed relevant evidence hidden across hundreds of long documents.
+
+Now the problem may no longer be primarily prompting.
+
+The architect should investigate:
+
+* retrieval quality;
+* long-context organisation;
+* document selection;
+* context limits;
+* evidence-ranking strategy.
+
+A more forceful instruction such as:
+
+```text
+VERY VERY IMPORTANT: USE THE DOCUMENTS
+```
+
+would not repair a retrieval pipeline that never supplied the relevant document.
+
+That distinction will become increasingly important as we move into **context engineering** later in the programme.
+
+---
+
+## 9. One-line architect rule
+
+> **Before making the prompt clever, make the task contract explicit: what Claude must do, what evidence it may use, what constraints apply, and what it should do when information is missing.**
+
+---
+
+## 10. Source basis
+
+Anthropic’s current **Prompting Best Practices** guide recommends clear, direct, explicit instructions; precise output requirements; providing relevant context; and sequential steps where completeness or ordering matters. The current guide is maintained as the living reference for Anthropic’s latest Claude models. ([Claude Platform][3])
+
+Anthropic’s official **Prompt Engineering Overview** recommends defining success criteria and having a way to test them before intensive prompt tuning, and warns that not every failing criterion is best solved through prompt engineering. ([Claude Platform][2])
+
+The security-questionnaire scenario is **practice-derived from current official prompting principles** and is not an authentic Claude certification question.
+
+[1]: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices?trk=public_post_main-feed-card-text&utm_source=chatgpt.com "Prompting best practices - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview?debug=1&debug=true&debug_url=1&utm_source=chatgpt.com "Prompt engineering overview - Claude Platform Docs"
+[3]: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices?utm_source=chatgpt.com "Prompting best practices - Claude Platform Docs"
+
+
 ## Aug 19, 2026
 
 # Sandboxing: Limit the Blast Radius, Not Just the Command
