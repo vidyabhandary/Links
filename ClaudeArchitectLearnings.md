@@ -1,5 +1,441 @@
 # Some learnings for Claude Architect 
 
+## Aug 27, 2026
+
+## Single Prompt or Prompt Chain? Split Only at Control Boundaries
+
+## 1. Level
+
+**Foundation**
+
+This week has built prompting progressively:
+
+* **Session 26:** make the task contract explicit.
+* **Session 27:** structure different kinds of prompt content clearly.
+* **Session 28:** use examples to demonstrate difficult decision boundaries.
+
+Today’s Thursday trade-off is architectural:
+
+> **Should Claude solve the whole task in one call, or should the application divide it into several sequential calls?**
+
+Anthropic refers to the second approach as **prompt chaining**. Current Claude models can handle substantial multistep reasoning internally, so chaining should **not** be the automatic choice merely because a task has several steps. Anthropic currently recommends explicit chaining mainly when you need to **inspect intermediate outputs or enforce a particular pipeline structure**. ([Claude Platform][1])
+
+---
+
+## 2. Today’s concept
+
+Consider a task:
+
+> Analyse a customer’s requirements and recommend an architecture.
+
+You could give Claude one well-designed prompt:
+
+```text
+Requirements
+      ↓
+Claude reasons internally
+      ↓
+Architecture recommendation
+```
+
+Or create an application-controlled chain:
+
+```text
+Requirements
+      ↓
+Extract confirmed requirements
+      ↓
+Validate extracted requirements
+      ↓
+Generate architecture
+      ↓
+Produce executive explanation
+```
+
+The second approach creates more API calls, but also creates **explicit boundaries** where the application can:
+
+* inspect an intermediate result;
+* validate it;
+* store it;
+* branch based on it;
+* stop the workflow;
+* send different instructions to the next stage.
+
+The key distinction is therefore not:
+
+> **simple task vs complex task**
+
+but:
+
+> **internal reasoning vs externally controlled stages.**
+
+Current Anthropic guidance says Claude’s adaptive thinking and orchestration capabilities handle much multistep work internally. Explicit chains remain valuable when those intermediate stages need to become **observable or controllable application state**. ([Claude Platform][1])
+
+---
+
+## 3. Why an architect cares
+
+Prompt chaining has genuine benefits—but each boundary has a price.
+
+### One call
+
+```text
+Input → Claude → Result
+```
+
+Advantages:
+
+* lower latency;
+* fewer model calls;
+* less orchestration code;
+* context stays together;
+* fewer intermediate failure modes.
+
+### Explicit chain
+
+```text
+Input → Call 1 → intermediate state → Call 2 → state → Call 3
+```
+
+Advantages:
+
+* intermediate outputs can be checked;
+* deterministic validation can occur between stages;
+* each prompt can focus on one narrower task;
+* failures can be isolated;
+* the workflow can branch;
+* audit trails are clearer.
+
+Costs include:
+
+* additional latency;
+* more tokens and API calls;
+* more application state;
+* risk that early-stage mistakes propagate downstream.
+
+The architectural mistake is to think:
+
+> “Five logical steps means five Claude calls.”
+
+A numbered prompt can ask Claude to perform five steps in **one call**. Splitting into five calls is justified only when the application gains something from controlling those boundaries.
+
+This is especially important with current models. Anthropic explicitly notes that the latest Claude models can perform complex multistep reasoning internally and recommends general instructions over unnecessarily prescriptive reasoning sequences in many cases. ([Claude Platform][1])
+
+---
+
+## 4. Architect’s lens
+
+Before creating a prompt chain, ask three questions.
+
+### 1. **Does the application need to inspect or validate an intermediate result?**
+
+Suppose the workflow is:
+
+```text
+Contract
+   ↓
+Extract renewal terms
+   ↓
+Assess renewal risk
+```
+
+If the extracted renewal terms are legally important evidence, you may want to validate or display them before allowing Claude to reason about risk.
+
+That creates a meaningful control boundary.
+
+But if the intermediate stage is merely:
+
+```text
+think about contract
+   ↓
+think a little more
+   ↓
+write answer
+```
+
+separate API calls probably add little value.
+
+---
+
+### 2. **Would an error in stage one contaminate everything downstream?**
+
+A chain can improve observability—but it can also **freeze an early mistake into application state**.
+
+Imagine stage one outputs:
+
+```json
+{
+  "customer_requirement": "Must use Kubernetes"
+}
+```
+
+when the customer merely said:
+
+> “We currently run some workloads on Kubernetes.”
+
+If the application treats stage one as authoritative, every later stage may optimise around a requirement that never existed.
+
+A chain therefore needs meaningful validation at important boundaries.
+
+Otherwise:
+
+```text
+single-call reasoning error
+```
+
+becomes:
+
+```text
+stage-1 error
+   ↓
+stored as fact
+   ↓
+stage-2 assumes it
+   ↓
+stage-3 explains it confidently
+```
+
+More stages do not automatically mean more reliability.
+
+---
+
+### 3. **Is the boundary needed for control, or merely for prompting convenience?**
+
+Use chaining when the system needs things such as:
+
+* human approval;
+* schema validation;
+* retrieval based on an intermediate decision;
+* different models or prompts per stage;
+* auditability;
+* branching.
+
+If none of these is required, a single well-structured prompt is often the simpler sufficient architecture.
+
+---
+
+## 5. Real-life example
+
+A consulting firm uses Claude to generate preliminary cloud-modernisation proposals from discovery transcripts.
+
+Initially, it uses one prompt:
+
+```text
+Read the discovery transcript.
+Identify requirements.
+Recommend an architecture.
+Explain the business rationale.
+```
+
+The output is generally good, but reviewers identify one serious problem:
+
+> Occasionally, Claude mistakes a **consultant suggestion** for a **customer-confirmed requirement**.
+
+For example:
+
+**Consultant:**
+
+> “We could potentially use event-driven integration here.”
+
+**Customer:**
+
+> “Yes, let's explore that.”
+
+The final proposal sometimes states:
+
+> “The customer requires event-driven integration.”
+
+This is important because the mistake propagates directly into architecture and costing.
+
+The company introduces a controlled chain.
+
+### Stage 1 — Evidence classification
+
+Claude produces:
+
+```text
+Confirmed requirements
+Customer preferences
+Consultant suggestions
+Open questions
+```
+
+Every item includes its transcript evidence.
+
+### Control boundary
+
+The application checks:
+
+* every item has evidence;
+* no item lacks a transcript citation;
+* high-impact ambiguous requirements are surfaced for review.
+
+Only then does the next stage run.
+
+### Stage 2 — Architecture
+
+Claude receives only the validated requirement set plus relevant constraints.
+
+It is instructed to:
+
+> choose the simplest architecture satisfying confirmed requirements and explicitly identify assumptions.
+
+### Stage 3 — Proposal narrative
+
+A final call translates the validated architecture into business-facing language.
+
+The important part is **not** that the company used three Claude calls.
+
+The important part is that:
+
+> **The boundary after requirement extraction protects a downstream business decision.**
+
+Without that control requirement, three calls would simply create more latency and cost.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A compliance application asks Claude to analyse regulatory correspondence and produce a recommended response.
+
+The current single prompt performs well, but regulators require the organisation to retain an auditable record of:
+
+1. the obligations identified in the correspondence;
+2. the evidence supporting each obligation;
+3. the final recommended response.
+
+The organisation must be able to stop processing when extracted obligations fail deterministic validation.
+
+Which architecture is the **best fit**?
+
+**A.** Keep a single Claude call and ask it to provide a longer explanation of its reasoning.
+
+**B.** Split the workflow into an obligation-extraction stage and a response-generation stage, validating and recording the structured intermediate result before proceeding.
+
+**C.** Launch several agents in parallel and choose the answer with the highest confidence.
+
+**D.** Keep one call but add more few-shot examples showing good regulatory responses.
+
+---
+
+## 7. Spot the clue
+
+The decisive phrases are:
+
+> **“retain an auditable record”**
+
+and:
+
+> **“stop processing when extracted obligations fail deterministic validation.”**
+
+The application needs an **externally visible control point between reasoning stages**.
+
+That is the strongest reason to introduce explicit prompt chaining.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **B**
+
+The regulatory obligations need to become a separate application artifact that can be:
+
+```text
+generated
+   ↓
+recorded
+   ↓
+validated
+   ↓
+pass ─────→ continue
+fail ─────→ stop
+```
+
+A separate API call creates exactly that control boundary.
+
+Anthropic’s current guidance identifies **inspection of intermediate outputs** and **enforcement of a particular pipeline structure** as the main reasons explicit prompt chaining remains useful even though current Claude models can perform much multistep reasoning internally. ([Claude Platform][1])
+
+### Why A is tempting but weaker
+
+A single call could certainly produce:
+
+```text
+Obligations
+Evidence
+Recommendation
+```
+
+in separate sections.
+
+But those sections exist only inside one completed generation.
+
+The application cannot deterministically reject the obligation set **before Claude generates the recommendation**, which is an explicit requirement in the scenario.
+
+The problem is not response clarity. It is **control flow**.
+
+### Why D is weaker
+
+Few-shot examples may improve how Claude identifies obligations, and yesterday’s lesson showed why examples are powerful around difficult judgment boundaries.
+
+But examples do not create an application checkpoint.
+
+They improve model behaviour; they do not let the application:
+
+> validate → stop → branch
+
+between stages.
+
+### What additional fact could change the decision?
+
+Suppose the requirements changed:
+
+* no regulatory checkpoint is required;
+* intermediate obligations do not need to be persisted;
+* evaluation shows the single-call result is already highly reliable;
+* latency is a major requirement.
+
+Then the better architecture may be the **single prompt**.
+
+Current Anthropic guidance explicitly says that adaptive thinking allows modern Claude models to handle much multistep reasoning internally, so there is little benefit in decomposing a task merely because humans can name several reasoning steps. ([Claude Platform][1])
+
+That gives you the decision rule:
+
+```text
+Need Claude to reason through several steps?
+        ↓
+Often one call is enough.
+
+Need the APPLICATION to control a boundary between steps?
+        ↓
+Consider prompt chaining.
+```
+
+---
+
+## 9. One-line architect rule
+
+> **Do not chain because the reasoning has steps; chain when the application needs to inspect, validate, branch, persist, or control something between those steps.**
+
+---
+
+## 10. Source basis
+
+Anthropic’s current **Prompting Best Practices** states that with adaptive thinking and modern subagent orchestration, Claude handles most multistep reasoning internally; explicit prompt chaining remains useful when developers need to inspect intermediate outputs or enforce a specific pipeline. ([Claude Platform][1])
+
+The same current guidance says Claude’s latest models can dynamically allocate reasoning through adaptive thinking and recommends avoiding unnecessarily prescriptive reasoning sequences where the model can determine a good approach itself. ([Claude Platform][1])
+
+Anthropic’s **Prompt Engineering Overview** also recommends defining success criteria and empirical evaluation before adding prompt complexity, and notes that not every problem is best solved through additional prompt engineering. ([Claude Platform][2])
+
+[Anthropic: Prompting best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices?utm_source=chatgpt.com)
+
+The compliance and consulting scenarios above are **practice-derived from current official Anthropic principles** and are not authentic certification questions.
+
+[1]: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices?destination=%2Fleadership-organisations%2Ftruth-about-how-bosses-behave-ask-their-assistants%3FAdId%3Dlabc-post%26CampaignId%3Dlabc-april2021%26SiteId%3Dfacebook "Prompting best practices - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview?debug=1&debug=true&debug_url=1&utm_source=chatgpt.com "Prompt engineering overview - Claude Platform Docs"
+
+
 ## Aug 26, 2026
 
 ## XML Prompt Structure: Separate Instructions from Data
