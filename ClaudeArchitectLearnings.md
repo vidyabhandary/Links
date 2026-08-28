@@ -1,5 +1,376 @@
 # Some learnings for Claude Architect 
 
+## Aug 28, 2026
+
+## Architecture Before Prompt Tricks
+
+## 1. Level
+
+**Foundation — Consolidation**
+
+This week’s five sessions form one coherent prompting principle:
+
+> **Reliable prompting is less about clever wording and more about making the task, evidence, decision boundaries, and control points explicit.**
+
+There is no new technique today. The goal is to distinguish **which prompting mechanism solves which failure**.
+
+As of **August 28, 2026**, Anthropic’s current prompting guidance continues to emphasize clear instructions, relevant context, well-chosen examples, XML structure, and selective prompt chaining. It also explicitly notes that current Claude models can handle much multistep reasoning internally, so separate API calls are most useful when the *application* needs to inspect or control an intermediate result. ([Claude Platform][1])
+
+---
+
+## 2. Today’s concept: diagnose the prompt failure first
+
+This week covered four distinct mechanisms:
+
+| Observed problem                                                                | First technique to consider |
+| ------------------------------------------------------------------------------- | --------------------------- |
+| Claude does not know exactly what a good answer means                           | **Explicit task contract**  |
+| Claude mixes instructions, documents, examples, or input                        | **XML structure**           |
+| Claude understands the rule but struggles at fuzzy boundaries                   | **Few-shot examples**       |
+| Application must validate, persist, approve, or branch between reasoning stages | **Prompt chain**            |
+
+The mistake is treating them as a ladder:
+
+```text
+basic prompt
+   ↓
+XML
+   ↓
+examples
+   ↓
+multiple calls
+```
+
+They are **not levels of sophistication**.
+
+They solve different problems.
+
+A good architect asks:
+
+> **What exactly is failing?**
+
+Only then chooses the technique.
+
+Anthropic’s current guide recommends explicit instructions and output constraints; calls examples one of the most reliable steering techniques; recommends structured XML for mixed prompt content; and reserves explicit chaining for cases where intermediate outputs or pipeline control matter. ([Claude Platform][1])
+
+---
+
+## 3. Why an architect cares
+
+Imagine a RAG system produces an unsupported answer.
+
+Four teams propose four fixes:
+
+**Team A:** “Make the prompt more explicit.”
+
+**Team B:** “Add examples.”
+
+**Team C:** “Split it into three Claude calls.”
+
+**Team D:** “Use XML.”
+
+Any of them might be useful—but none is automatically correct.
+
+First determine whether:
+
+```text
+relevant evidence never entered context
+                 ↓
+retrieval problem
+```
+
+or:
+
+```text
+evidence is present but mixed ambiguously
+                 ↓
+prompt-structure problem
+```
+
+or:
+
+```text
+evidence is present and clear,
+but the supported/unsupported boundary is fuzzy
+                 ↓
+example / decision-boundary problem
+```
+
+or:
+
+```text
+result must be checked before another business action occurs
+                 ↓
+workflow-control / chaining problem
+```
+
+This diagnostic discipline prevents prompt engineering from becoming a collection of rituals.
+
+Anthropic’s prompt-engineering overview similarly recommends defining success criteria and empirical tests first, and explicitly warns that not every failing criterion should be solved by prompt engineering. ([Claude Platform][2])
+
+---
+
+## 4. Architect’s lens
+
+Use these three questions before changing a production prompt:
+
+### **1. Is the requirement actually explicit?**
+
+Could a competent colleague unfamiliar with the project follow the prompt correctly?
+
+Anthropic uses essentially this test in its current guidance: if a colleague with minimal context would be confused, Claude probably will be too. ([Claude Platform][1])
+
+### **2. Is Claude missing information—or misinterpreting information it already has?**
+
+If the wrong documents were retrieved, prompt tuning is downstream of the real defect.
+
+If the correct documents are present but their roles are unclear, XML structure may help.
+
+### **3. Does the model need to reason through a step, or does the application need control after that step?**
+
+This distinction decides whether to keep reasoning in one call or create a chain.
+
+```text
+Claude needs to think through steps
+        → usually one call
+
+Application must inspect / validate / branch
+        → consider explicit chain
+```
+
+Current Anthropic guidance makes this distinction particularly important because its latest models handle substantial multistep reasoning internally. ([Claude Platform][1])
+
+---
+
+# 5. Real-life integrated example
+
+An enterprise procurement assistant reads supplier proposals and recommends whether they should proceed to contracting.
+
+Reviewers observe three problems.
+
+### Problem A
+
+Claude sometimes treats supplier marketing claims as confirmed facts.
+
+**Fix:** strengthen the task contract:
+
+```text
+Distinguish:
+- verified evidence,
+- supplier claims,
+- internal assumptions,
+- missing information.
+```
+
+### Problem B
+
+The prompt contains five supplier documents, company policy, examples, and the user's question. Claude occasionally attributes a statement to the wrong source.
+
+**Fix:** structure the context:
+
+```xml
+<company_policy>
+...
+</company_policy>
+
+<supplier_documents>
+  <document index="1">
+    <source>Security_Response.pdf</source>
+    <document_content>...</document_content>
+  </document>
+</supplier_documents>
+
+<question>
+...
+</question>
+```
+
+Anthropic specifically recommends descriptive XML tags and nested document structures for complex multi-document prompts. ([Claude Platform][1])
+
+### Problem C
+
+Claude inconsistently distinguishes:
+
+```text
+minor contractual issue
+        vs
+legal-review-required issue
+```
+
+The written policy is already clear, but borderline cases remain inconsistent.
+
+**Fix:** add a small set of **diverse boundary examples**, not dozens of trivial examples.
+
+Anthropic currently recommends relevant, diverse, structured examples and suggests roughly **3–5** when few-shot prompting is useful. ([Claude Platform][1])
+
+Now suppose one additional requirement appears:
+
+> Before a contract recommendation is generated, the extracted mandatory obligations must be validated by business rules and stored for audit.
+
+That changes the architecture.
+
+Now an explicit chain is justified:
+
+```text
+Documents
+    ↓
+Extract obligations
+    ↓
+deterministic validation
+   /        \
+fail       pass
+ |           |
+stop    Generate recommendation
+```
+
+The reason for chaining is **not that contract analysis is difficult**.
+
+It is that the application needs an enforceable checkpoint between stages.
+
+---
+
+# 6. Exam-style questions
+
+These are **practice-derived questions**, not authentic Anthropic certification questions.
+
+### Question 1
+
+A customer-support classifier has well-written category definitions, but Claude inconsistently distinguishes ordinary complaints from cases requiring executive escalation. Easy cases are already accurate.
+
+What is the best next step?
+
+**A.** Add 3–5 diverse examples concentrating on borderline escalation cases.
+**B.** Split classification into four sequential Claude calls.
+**C.** Increase `max_tokens`.
+**D.** Add more XML tags around the same category definitions.
+
+### Answer: **A**
+
+### 7. Spot the clue
+
+> **“Definitions are well-written”**
+> **“Easy cases are already accurate”**
+> **“Borderline cases”**
+
+The missing information is not the rule. Claude needs demonstrations of **how the rule behaves near the decision boundary**.
+
+Anthropic recommends examples precisely for improving consistency and advises using relevant, diverse examples rather than examples that all demonstrate the same easy pattern. ([Claude Platform][1])
+
+**Strongest distractor: D.** XML can clarify which content is an instruction or example, but it does not inherently teach where the escalation boundary lies.
+
+---
+
+### Question 2 — Select TWO
+
+A RAG prompt contains several long documents, examples, instructions, and the current user question.
+
+Which TWO changes align with current Anthropic guidance?
+
+**A.** Clearly structure documents and metadata with descriptive XML tags.
+**B.** Put all long documents after the user question because the latest instruction should be nearest the model output.
+**C.** Use diverse examples when examples are needed.
+**D.** Always split every reasoning stage into a separate API call.
+**E.** Remove source metadata to reduce distraction.
+
+### Answers: **A and C**
+
+For long-context tasks, Anthropic currently recommends placing long documents toward the beginning of the prompt and placing the query later; it also recommends structured document metadata and XML tags. ([Claude Platform][1])
+
+So **B** is specifically contrary to current guidance.
+
+---
+
+### Question 3
+
+An application asks Claude to extract regulatory obligations and then formulate a response.
+
+The extracted obligations must be programmatically validated before the response may be generated.
+
+What architecture is strongest?
+
+**A.** One long prompt with “DOUBLE CHECK” before the final response.
+**B.** Few-shot examples showing valid obligations.
+**C.** Separate extraction and response-generation calls with deterministic validation between them.
+**D.** XML tags around the final answer.
+
+### Answer: **C**
+
+The clue is:
+
+> **“must be programmatically validated before”**
+
+This is an **application control boundary**.
+
+An explicit prompt chain enables:
+
+```text
+generate
+   ↓
+inspect / validate
+   ↓
+branch
+   ↓
+continue
+```
+
+Anthropic’s current prompting guide says explicit chaining remains useful precisely when intermediate outputs need inspection or a specific pipeline must be enforced. ([Claude Platform][1])
+
+**Strongest distractor: B.** Examples may improve extraction quality, but they do not create a deterministic checkpoint.
+
+**What could change the decision?** If no intermediate validation, persistence, branching, or approval were required and a single-call evaluation already met the quality target, keeping the task in one call would usually be simpler.
+
+---
+
+## 8. Answer-reasoning takeaway
+
+The four techniques can now be remembered through four diagnostic questions:
+
+```text
+Does Claude know WHAT success means?
+        ↓
+Explicit contract
+
+Does Claude know WHAT each input element is?
+        ↓
+XML structure
+
+Does Claude know HOW the rule applies near ambiguous boundaries?
+        ↓
+Examples
+
+Does the APPLICATION need control between stages?
+        ↓
+Prompt chain
+```
+
+And before all four:
+
+> **Was the correct evidence actually supplied?**
+
+If not, fix the retrieval or context pipeline instead of polishing the prompt.
+
+---
+
+## 9. One-line architect rule
+
+> **Make the contract explicit, structure the evidence, demonstrate difficult boundaries, and split calls only when the application needs a real control point.**
+
+---
+
+## 10. Source basis
+
+Anthropic’s current **Prompting Best Practices**, retrieved **August 28, 2026**, is the primary source for this checkpoint. It recommends clear and explicit instructions; relevant, diverse, structured few-shot examples; XML organisation for complex prompts; careful long-context placement; and selective prompt chaining. ([Claude Platform][1])
+
+[Anthropic — Prompting Best Practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices?utm_source=chatgpt.com)
+
+Anthropic’s current **Prompt Engineering Overview** also recommends establishing measurable success criteria before prompt optimisation and notes that prompt engineering is not the right solution to every performance problem. ([Claude Platform][2])
+
+The scenarios and questions above are **practice-derived from official Anthropic guidance** and are not authentic or recalled certification questions.
+
+[1]: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices "Prompting best practices - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/de/docs/build-with-claude/prompt-engineering/overview?utm_source=chatgpt.com "Überblick über Prompt-Engineering - Claude Platform Docs"
+
+
 ## Aug 27, 2026
 
 ## Single Prompt or Prompt Chain? Split Only at Control Boundaries
