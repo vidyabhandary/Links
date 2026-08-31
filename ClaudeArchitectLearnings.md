@@ -1,5 +1,558 @@
 # Some learnings for Claude Architect 
 
+## Aug 31, 2026
+
+# Structured Outputs: Schema Compliance Is Not Semantic Correctness
+
+## 1. Level
+
+**Foundation**
+
+Week 7 begins **structured outputs and context management**.
+
+Last week you learned how to make Claude’s instructions clearer. Today we cross an important boundary:
+
+> **When software must consume Claude’s answer, do not rely on prompting alone to make the output machine-readable.**
+
+Anthropic’s current Structured Outputs capability can constrain Claude’s direct response to a JSON schema using `output_config.format`. ([Claude][1])
+
+---
+
+## 2. Today’s concept
+
+Suppose a claims application asks Claude:
+
+```text
+Extract:
+- claim ID
+- incident date
+- claim category
+- whether supporting documents are missing
+
+Return JSON.
+```
+
+Claude may usually produce something like:
+
+```json
+{
+  "claim_id": "CLM-4271",
+  "incident_date": "2026-08-12",
+  "category": "property",
+  "documents_missing": false
+}
+```
+
+But **“Return JSON” is still an instruction**.
+
+Without structural enforcement, production systems can eventually encounter:
+
+* malformed JSON;
+* a missing field;
+* `"false"` instead of `false`;
+* an unexpected property;
+* commentary surrounding the JSON.
+
+Anthropic’s Structured Outputs use **constrained decoding** to make Claude’s response conform to a specified schema. The current API shape uses:
+
+```python
+output_config={
+    "format": {
+        "type": "json_schema",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "claim_id": {"type": "string"},
+                "incident_date": {
+                    "type": "string",
+                    "format": "date"
+                },
+                "category": {
+                    "type": "string",
+                    "enum": ["property", "motor", "liability"]
+                },
+                "documents_missing": {"type": "boolean"}
+            },
+            "required": [
+                "claim_id",
+                "incident_date",
+                "category",
+                "documents_missing"
+            ],
+            "additionalProperties": false
+        }
+    }
+}
+```
+
+Claude’s output is then constrained to that structural contract. Anthropic documents schema-compliant JSON, required-field and type guarantees, eliminating retries caused merely by schema violations. ([Claude][1])
+
+But this creates today’s most important distinction:
+
+> **A structurally valid answer can still be factually wrong.**
+
+For example:
+
+```json
+{
+  "claim_id": "CLM-4271",
+  "incident_date": "2026-08-12",
+  "category": "motor",
+  "documents_missing": false
+}
+```
+
+could match the schema perfectly even if the claim was actually a **property** claim.
+
+Structured Outputs guarantee the **shape**.
+
+They do not guarantee the **truth**.
+
+---
+
+### Current API update
+
+If you encounter older examples, note that Anthropic has moved the direct API parameter from:
+
+```text
+output_format
+```
+
+to:
+
+```text
+output_config.format
+```
+
+and the previous structured-output beta header is no longer required. The older form remains temporarily accepted for migration, while some SDK convenience methods—such as Python’s `messages.parse()`—still expose an `output_format` helper that translates to the newer API configuration internally. ([Claude][1])
+
+That is a product/API change, not a change to the architectural principle.
+
+---
+
+## 3. Why an architect cares
+
+This distinction eliminates a common production design error.
+
+Teams often treat these as one problem:
+
+> “Can I parse the answer?”
+
+and:
+
+> “Can I trust the answer?”
+
+They are different reliability dimensions.
+
+Consider a loan-document workflow:
+
+```text
+Document
+   ↓
+Claude
+   ↓
+JSON
+   ↓
+Decision engine
+```
+
+The decision engine needs fields such as:
+
+```json
+{
+  "annual_income": 120000,
+  "employment_verified": true
+}
+```
+
+Structured Outputs can guarantee:
+
+* `annual_income` exists;
+* it is numeric;
+* `employment_verified` is Boolean;
+* no unrecognised fields appear.
+
+But they cannot guarantee that Claude correctly read:
+
+```text
+$120,000
+```
+
+rather than:
+
+```text
+$102,000
+```
+
+from the source.
+
+Architecturally:
+
+```text
+Schema correctness
+        ↓
+Structured Outputs
+
+Evidence correctness
+        ↓
+prompt + context + extraction quality + evaluation
+
+Business validity
+        ↓
+application rules / authoritative systems
+```
+
+Each requires a different control.
+
+This is exactly the principle you have been learning throughout the programme:
+
+> **Fix failures at the layer where they occur.**
+
+---
+
+## 4. Architect’s lens
+
+Ask these three questions.
+
+### 1. Is the requirement structural or semantic?
+
+If the requirement is:
+
+> `risk_level` must always be one of `LOW`, `MEDIUM`, or `HIGH`.
+
+That belongs naturally in a schema.
+
+If the requirement is:
+
+> Choose `HIGH` only when supplied evidence demonstrates material regulatory risk.
+
+That is a **reasoning requirement**.
+
+The schema can constrain the possible label:
+
+```json
+"enum": ["LOW", "MEDIUM", "HIGH"]
+```
+
+but cannot determine whether Claude chose the correct one.
+
+---
+
+### 2. Could ordinary application code validate this rule?
+
+Suppose:
+
+```text
+approved_credit_limit must never exceed ₹5,000,000
+```
+
+Do not assume every business invariant belongs inside model reasoning.
+
+Structured-output support has some JSON Schema limitations. Anthropic’s SDKs may transform unsupported constraints—for example, removing certain range or length constraints from the schema sent to Claude, adding them to descriptions, and then validating against the original schema in application code. ([Claude][1])
+
+The architect should therefore distinguish:
+
+```text
+Can constrained generation guarantee this?
+          ↓
+schema
+
+Can deterministic software guarantee this?
+          ↓
+validation code
+
+Does interpreting the rule require judgment?
+          ↓
+Claude
+```
+
+---
+
+### 3. What happens after I receive valid JSON?
+
+“JSON parsed successfully” should never automatically mean:
+
+> “Business decision approved.”
+
+You may still need:
+
+* evidence verification;
+* range checks;
+* cross-field checks;
+* database lookups;
+* policy evaluation;
+* human review.
+
+The output schema creates a reliable **integration contract**, not an automatic trust boundary.
+
+---
+
+## 5. Real-life example
+
+A hospital administration system processes referral letters.
+
+Claude must extract:
+
+```json
+{
+  "patient_reference": "...",
+  "specialty": "...",
+  "priority": "...",
+  "requested_date": "...",
+  "missing_information": [...]
+}
+```
+
+The downstream scheduling system expects exactly these fields.
+
+### Before Structured Outputs
+
+The prompt says:
+
+> “Return JSON exactly in this format.”
+
+The team occasionally receives:
+
+```text
+Here is the extracted information:
+
+{
+   ...
+}
+```
+
+or:
+
+```json
+{
+  "priority": "Urgent",
+  "missing_info": []
+}
+```
+
+where downstream software expected:
+
+```text
+"priority": "URGENT"
+"missing_information"
+```
+
+The developers write increasingly complicated cleanup code.
+
+### Better architecture
+
+They define a schema:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "patient_reference": {"type": "string"},
+    "specialty": {"type": "string"},
+    "priority": {
+      "type": "string",
+      "enum": ["ROUTINE", "URGENT"]
+    },
+    "requested_date": {
+      "type": ["string", "null"]
+    },
+    "missing_information": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "required": [
+    "patient_reference",
+    "specialty",
+    "priority",
+    "requested_date",
+    "missing_information"
+  ],
+  "additionalProperties": false
+}
+```
+
+Now the application no longer needs defensive code merely to cope with arbitrary JSON structure.
+
+But suppose the referral says:
+
+> “Patient should be seen routinely unless symptoms worsen.”
+
+Claude returns:
+
+```json
+{
+  "priority": "URGENT"
+}
+```
+
+The schema has worked perfectly.
+
+The extraction has not.
+
+That failure belongs in:
+
+* prompting;
+* evidence interpretation;
+* evaluation;
+* potentially human review;
+
+**not in JSON parsing**.
+
+This distinction matters especially in high-consequence domains.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+An insurance application uses Claude to classify incoming claims.
+
+A downstream rules engine requires:
+
+```json
+{
+  "claim_type": "MOTOR | PROPERTY | LIABILITY",
+  "requires_manual_review": true,
+  "reason": "..."
+}
+```
+
+Developers currently prompt Claude to “return exactly this JSON.” They experience occasional parse errors and missing fields.
+
+After enabling Structured Outputs, all responses parse successfully, but evaluation shows that Claude still occasionally assigns the wrong `claim_type`.
+
+What should the architect do **next**?
+
+**A.** Add more JSON-schema constraints until the schema guarantees the correct claim classification.
+
+**B.** Keep Structured Outputs for structural reliability and separately investigate the classification logic, evidence, prompt, and evaluation data.
+
+**C.** Remove Structured Outputs because they failed to guarantee classification accuracy.
+
+**D.** Parse the JSON twice to detect semantic errors.
+
+---
+
+## 7. Spot the clue
+
+The critical phrase is:
+
+> **“All responses parse successfully, but … wrong `claim_type`.”**
+
+The structural failure has been fixed.
+
+The remaining defect is **semantic**.
+
+Do not continue solving a reasoning problem at the serialization layer.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **B**
+
+Structured Outputs are doing exactly what they are designed to do: Claude’s response conforms to the schema.
+
+Anthropic describes Structured Outputs as guaranteeing valid JSON, required fields, and appropriate schema-level types through constrained decoding. ([Claude][1])
+
+They do **not** mean that every value placed into a valid field is factually correct.
+
+The architect should now investigate the next layer:
+
+```text
+Was the correct evidence supplied?
+        ↓
+Is the classification rule explicit?
+        ↓
+Are difficult boundary examples needed?
+        ↓
+What does evaluation show about failures?
+```
+
+That builds directly on Week 6.
+
+### Why A is tempting but weaker
+
+The label is already restricted to:
+
+```text
+MOTOR
+PROPERTY
+LIABILITY
+```
+
+A stricter schema might ensure Claude cannot return:
+
+```text
+TRAVEL
+```
+
+But the schema cannot tell whether a particular claim should be `MOTOR` or `PROPERTY`.
+
+That requires understanding the claim.
+
+### Why C is weaker
+
+Removing Structured Outputs would reintroduce the original integration problems **without improving semantic accuracy**.
+
+A useful architectural feature should not be discarded merely because it does not solve a different failure class.
+
+### What additional fact could change the decision?
+
+Suppose the application has a reliable field:
+
+```json
+{
+  "policy_product_code": "MTR-01"
+}
+```
+
+and every `MTR-*` policy is deterministically a motor policy.
+
+Then Claude may not need to classify `claim_type` at all.
+
+Application logic could derive:
+
+```text
+MTR-* → MOTOR
+PRP-* → PROPERTY
+LIA-* → LIABILITY
+```
+
+and Claude could focus only on fields requiring semantic interpretation.
+
+That would be even stronger architecture:
+
+> **Do not ask Claude to infer something deterministic data already tells you.**
+
+---
+
+## 9. One-line architect rule
+
+> **Use Structured Outputs to guarantee the shape of Claude’s answer; use evidence, evaluation, and deterministic business logic to establish whether the values are actually correct.**
+
+---
+
+## 10. Source basis
+
+Anthropic’s current **Structured Outputs** documentation states that JSON outputs use `output_config.format` with a JSON Schema and guarantee schema-compliant, type-safe, parseable output through constrained decoding. It also distinguishes JSON outputs from strict tool-use schemas, which we will treat separately rather than collapsing into today’s concept. ([Claude][1])
+
+The current documentation also notes the migration from the older `output_format` direct API parameter and beta header to `output_config.format`; SDK convenience APIs may abstract this difference. ([Claude][1])
+
+Anthropic further documents important exceptions: safety refusals and responses truncated because of `max_tokens` can take precedence over the schema and therefore may not produce a matching structured output. ([Claude][2])
+
+Structured Outputs support standard JSON Schema with documented limitations, and current SDKs can transform some unsupported constraints while retaining application-side validation against the original schema. ([Claude][1])
+
+[Anthropic — Structured Outputs documentation](https://platform.claude.com/docs/en/build-with-claude/structured-outputs?utm_source=chatgpt.com)
+
+The insurance scenario is **practice-derived from current official Anthropic guidance** and is not an authentic certification question.
+
+[1]: https://platform.claude.com/docs/en/build-with-claude/structured-outputs?utm_source=chatgpt.com "Structured outputs - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/build-with-claude/structured-outputs?m=1&utm_source=chatgpt.com "Structured outputs - Claude Platform Docs"
+
+
 ## Aug 28, 2026
 
 ## Architecture Before Prompt Tricks
