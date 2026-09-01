@@ -1,5 +1,567 @@
 # Some learnings for Claude Architect 
 
+## Sep 1, 2026
+
+# Strict Tool Use: Make Tool Calls Type-Safe
+
+## 1. Level
+
+**Foundation**
+
+Yesterday you learned that **Structured Outputs** can guarantee the shape of Claude’s *final response*.
+
+Today we apply the same reliability idea at a different boundary:
+
+> **When Claude calls a tool, the tool arguments should conform to the function’s input contract before your application executes it.**
+
+Anthropic calls this **strict tool use**. Setting `strict: true` on a supported tool definition constrains Claude’s tool input so it matches the specified JSON Schema. ([Claude][1])
+
+---
+
+## 2. Today’s concept
+
+Suppose an application exposes this tool:
+
+```json
+{
+  "name": "book_room",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "room_id": {"type": "string"},
+      "attendees": {"type": "integer"},
+      "duration_minutes": {"type": "integer"}
+    },
+    "required": ["room_id", "attendees", "duration_minutes"],
+    "additionalProperties": false
+  }
+}
+```
+
+Without strict enforcement, Claude might occasionally produce:
+
+```json
+{
+  "room_id": "CR-401",
+  "attendees": "six",
+  "duration_minutes": 30
+}
+```
+
+The intent is obvious to a human.
+
+The API contract is not satisfied:
+
+```text
+attendees expected integer
+             ↓
+received string
+             ↓
+tool call fails / retry required
+```
+
+With:
+
+```json
+"strict": true
+```
+
+Claude’s `tool_use.input` is constrained to the schema, so an argument such as `attendees` must use an allowed type. Anthropic currently documents strict mode as guaranteeing schema-valid tool names and inputs through grammar-constrained sampling. ([Claude][1])
+
+The important distinction from yesterday is:
+
+```text
+Structured JSON output
+       ↓
+Constrains Claude's final response
+
+Strict tool use
+       ↓
+Constrains arguments Claude sends to a tool
+```
+
+Anthropic treats them as two complementary Structured Outputs capabilities, and they can be used independently or together. ([Claude][2])
+
+---
+
+### What strict mode **does not** guarantee
+
+Suppose Claude produces:
+
+```json
+{
+  "room_id": "CR-401",
+  "attendees": 6,
+  "duration_minutes": 30
+}
+```
+
+The structure is perfect.
+
+But what if:
+
+* `CR-401` does not exist;
+* it holds only four people;
+* the user is not authorised to book it;
+* the room is already occupied?
+
+`strict: true` cannot answer those questions.
+
+It guarantees:
+
+> **“These arguments match the tool contract.”**
+
+It does **not** guarantee:
+
+> **“Executing this operation is valid.”**
+
+So the architecture remains:
+
+```text
+Claude
+  ↓
+schema-valid tool call
+  ↓
+application validation
+  ↓
+authorization
+  ↓
+business rules
+  ↓
+execute
+```
+
+That separation is today’s main lesson.
+
+---
+
+## 3. Why an architect cares
+
+Agentic systems frequently fail at integration boundaries rather than because the model misunderstood the business problem.
+
+Consider an enterprise application exposing twenty tools.
+
+Without strict tool use, every executor may need defensive logic for cases such as:
+
+```text
+missing required argument
+wrong type
+unexpected property
+invalid nested structure
+```
+
+That often produces:
+
+```text
+Claude generates call
+       ↓
+application rejects
+       ↓
+error returned
+       ↓
+Claude retries
+       ↓
+extra latency + tokens
+```
+
+Anthropic specifically positions strict tool use as a way to avoid retries caused by schema violations and to build type-safe tool integrations. ([Claude][1])
+
+This is particularly valuable as tools become more complex:
+
+```json
+{
+  "customer": {
+    "id": "...",
+    "address": {
+      "country": "...",
+      "postal_code": "..."
+    }
+  },
+  "items": [
+    {
+      "sku": "...",
+      "quantity": 2
+    }
+  ]
+}
+```
+
+The more nested the contract, the greater the benefit from enforcing structure before the call reaches your business code.
+
+But do not make the opposite mistake:
+
+> “The tool input passed the schema, therefore it is safe to execute.”
+
+Schema compliance is only **one layer of validity**.
+
+---
+
+## 4. Architect’s lens
+
+Ask these three questions whenever Claude invokes a production tool.
+
+### 1. **Can the requirement be represented structurally?**
+
+Suppose an order tool requires:
+
+```text
+quantity → integer
+delivery_mode → STANDARD | EXPRESS
+customer_id → string
+```
+
+These belong naturally in the schema.
+
+For example:
+
+```json
+"delivery_mode": {
+  "type": "string",
+  "enum": ["STANDARD", "EXPRESS"]
+}
+```
+
+Do not spend prompt text asking:
+
+> “Please always use exactly STANDARD or EXPRESS.”
+
+when the interface itself can enforce it.
+
+---
+
+### 2. **Is the rule structural or a business invariant?**
+
+Consider:
+
+> `quantity` must be an integer.
+
+That is structural.
+
+Now consider:
+
+> Customers in this account tier cannot order more than 20 units.
+
+That is a business rule.
+
+The schema might ensure:
+
+```json
+"quantity": 18
+```
+
+is syntactically acceptable.
+
+Your application must still decide whether **18 is allowed for this customer**.
+
+The pattern is:
+
+```text
+Type / required field / enum
+             ↓
+schema
+
+Customer entitlement / inventory / policy
+             ↓
+business validation
+```
+
+---
+
+### 3. **Could executing a perfectly valid call still cause unacceptable harm?**
+
+Suppose Claude generates:
+
+```json
+{
+  "employee_id": "E1038",
+  "new_salary": 145000
+}
+```
+
+Every field may be valid.
+
+But salary changes require:
+
+* correct user authority;
+* perhaps approval;
+* organisational policy checks;
+* audit logging.
+
+Strict mode should therefore complement—not replace—the authorization and human-control principles you learned during MCP and agent orchestration.
+
+---
+
+## 5. Real-life example
+
+A logistics company builds a Claude agent for warehouse operations.
+
+Claude can call:
+
+```text
+create_inventory_transfer
+```
+
+to move stock between warehouses.
+
+The tool expects:
+
+```json
+{
+  "sku": "string",
+  "quantity": "integer",
+  "source_warehouse": "string",
+  "destination_warehouse": "string",
+  "priority": "NORMAL | URGENT"
+}
+```
+
+Without strict mode, production telemetry shows occasional calls such as:
+
+```json
+{
+  "sku": "AX-811",
+  "quantity": "twelve",
+  "source": "WH-PUNE",
+  "destination_warehouse": "WH-MUMBAI",
+  "priority": "HIGH"
+}
+```
+
+Three problems occur:
+
+* wrong type;
+* wrong property name;
+* unsupported enum value.
+
+Developers add retry logic, but that increases latency and complicates the agent loop.
+
+They enable strict tool use.
+
+Now Claude is constrained to something structurally valid:
+
+```json
+{
+  "sku": "AX-811",
+  "quantity": 12,
+  "source_warehouse": "WH-PUNE",
+  "destination_warehouse": "WH-MUMBAI",
+  "priority": "URGENT"
+}
+```
+
+This removes an entire class of integration failures.
+
+But the executor **still checks**:
+
+```text
+Does SKU AX-811 exist?
+         ↓
+Are 12 units actually available in WH-PUNE?
+         ↓
+Is WH-MUMBAI authorised to receive this item?
+         ↓
+Does the requesting employee have transfer authority?
+```
+
+Suppose only seven units exist.
+
+The tool call is still perfectly schema-valid:
+
+```json
+"quantity": 12
+```
+
+The business operation is nevertheless invalid.
+
+The server should reject it with a meaningful tool result, for example:
+
+```text
+requested: 12
+available: 7
+transfer_created: false
+```
+
+Claude can then decide whether to propose transferring seven units, sourcing inventory elsewhere, or escalating.
+
+The architecture is therefore:
+
+```text
+Strict schema
+    ↓
+protects interface reliability
+
+Business validation
+    ↓
+protects domain correctness
+```
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A banking assistant exposes a tool:
+
+```text
+create_wire_transfer
+```
+
+Its parameters include:
+
+* `source_account`: string
+* `beneficiary_id`: string
+* `amount`: number
+* `currency`: approved enum
+
+Developers see occasional runtime failures because Claude omits required fields or sends numeric amounts as strings.
+
+The bank also requires:
+
+* sufficient account balance;
+* beneficiary approval;
+* transaction limits;
+* user authorisation.
+
+Which architecture is the **best fit**?
+
+**A.** Enable strict tool use and treat every schema-valid call as approved for execution.
+
+**B.** Enable strict tool use to guarantee valid tool arguments, then independently enforce authorisation and banking business rules before execution.
+
+**C.** Remove the tool schema and describe all rules in the system prompt so Claude can reason about them together.
+
+**D.** Keep non-strict tool calls and retry until Claude eventually returns usable parameters.
+
+---
+
+## 7. Spot the clue
+
+There are **two different failure classes** in the scenario.
+
+> **“omits required fields or sends numeric amounts as strings”**
+
+This is an **interface/schema problem**.
+
+But:
+
+> **“sufficient balance, beneficiary approval, transaction limits, user authorisation”**
+
+These are **business and security controls**.
+
+One mechanism should not be expected to solve both.
+
+---
+
+## 8. Answer reasoning
+
+### Correct answer: **B**
+
+Strict tool use directly addresses malformed or incorrectly typed tool inputs.
+
+Anthropic’s current documentation states that `strict: true` guarantees that the tool name is valid and that the `input` follows the supplied `input_schema`. ([Claude][1])
+
+But the banking requirements depend on external state and policy:
+
+```text
+schema:
+amount is a number
+
+business rule:
+amount does not exceed available balance
+
+authorization:
+this user may initiate this transfer
+```
+
+Those must remain application/server controls.
+
+### Why A is tempting but weaker
+
+Once a tool call is guaranteed to conform structurally, it is easy to start treating it as “validated.”
+
+But there are several meanings of validated:
+
+```text
+structurally valid
+       ≠
+business-valid
+       ≠
+authorised
+       ≠
+approved
+```
+
+A perfectly valid JSON call could attempt to transfer ₹50 million from an account containing ₹5,000.
+
+Strict tool use has done nothing wrong; the architect simply asked it to solve a problem outside its responsibility.
+
+### Why D is weaker
+
+Retries can eventually repair malformed inputs, but they introduce:
+
+* additional API calls;
+* latency;
+* more agent-loop complexity;
+* another failure mode.
+
+If schema compliance can be guaranteed at generation time, repeated repair loops are unnecessary. Anthropic explicitly highlights removal of schema-error retries as one benefit of strict tool use. ([Claude][1])
+
+### What additional fact could change the decision?
+
+Suppose the tool is:
+
+```text
+calculate_compound_interest
+```
+
+and every valid input is safe to execute:
+
+```json
+{
+  "principal": 10000,
+  "rate": 0.05,
+  "years": 10
+}
+```
+
+There may be no authorization, side-effect, or external-state validation beyond ordinary parameter checks.
+
+In that case:
+
+```text
+strict schema
+    ↓
+execute calculation
+```
+
+may genuinely be sufficient.
+
+The amount of validation required depends on the **consequence and semantics of the tool**, not merely on whether Claude produced valid JSON.
+
+---
+
+## 9. One-line architect rule
+
+> **Use `strict: true` to make Claude obey the tool’s interface contract; keep authorization, domain rules, and consequential-action controls outside that schema.**
+
+---
+
+## 10. Source basis
+
+Anthropic’s current **Strict Tool Use** documentation states that setting `strict: true` on a supported tool definition guarantees JSON Schema compliance for Claude’s tool inputs through grammar-constrained sampling, including correctly typed arguments and required fields. It specifically positions strict mode for reliable agentic workflows and reducing retries caused by malformed tool calls. ([Claude][1])
+
+Anthropic’s current **Structured Outputs** documentation treats two features as complementary: **JSON outputs** using `output_config.format` for Claude’s direct response and **strict tool use** using `strict: true` for tool names and inputs. They can be used independently or together. ([Claude][2])
+
+A current compatibility detail: `strict` is not available on every toolset entry; Anthropic’s tool reference currently excludes, among others, the MCP toolset entry and the `computer_toolset_20260801` / `browser_toolset_20260801` entries. Use the current tool reference when applying strict mode to Anthropic-managed toolsets. ([Claude][3])
+
+The warehouse and banking scenarios above are **practice-derived from current official Anthropic guidance** and are not authentic certification questions.
+
+[1]: https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use?utm_source=chatgpt.com "Strict tool use - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/build-with-claude/structured-outputs?utm_source=chatgpt.com "Structured outputs - Claude Platform Docs"
+[3]: https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-reference?utm_source=chatgpt.com "Tool reference - Claude Platform Docs"
+
+
 ## Aug 31, 2026
 
 # Structured Outputs: Schema Compliance Is Not Semantic Correctness
