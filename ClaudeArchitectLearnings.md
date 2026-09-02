@@ -1,5 +1,166 @@
 # Some learnings for Claude Architect 
 
+## Sep 2, 2026
+
+## Structured Outputs: Check Completion Before Trusting the Schema
+
+## 1. Level
+
+**Foundation — Week 7, Session 33**
+
+## 2. Today’s concept
+
+Yesterday, strict tool use showed that Claude can be constrained to generate schema-valid tool arguments. Structured Outputs similarly constrain Claude’s direct response to a JSON schema.
+
+But there is one important exception:
+
+> **Schema guarantees apply to a normally completed generation—not blindly to every HTTP 200 response.**
+
+Two important `stop_reason` values can produce output that does **not** match the requested schema:
+
+* **`max_tokens`** — generation was cut off before completion.
+* **`refusal`** — Claude declined the request; the refusal takes precedence over the requested schema.
+
+Anthropic explicitly documents both exceptions. A refusal is still returned as **HTTP 200**, so HTTP success alone is not sufficient evidence that your structured result is usable.
+
+The production pattern should therefore be:
+
+```text
+response received
+      ↓
+check stop_reason
+      ↓
+complete? → parse / validate / use
+max_tokens? → retry appropriately
+refusal? → handle refusal path
+```
+
+The key idea is simple: **completion state is part of the application contract.**
+
+---
+
+## 3. Why an architect cares
+
+Without Structured Outputs, applications often spend effort handling malformed JSON.
+
+Structured Outputs remove most of that problem—but an architect can accidentally reintroduce unreliability by assuming:
+
+> `HTTP 200 + Structured Outputs = valid business payload`
+
+That assumption is wrong.
+
+For example, a document-extraction service could receive an HTTP 200 response that stopped at `max_tokens`. The JSON may be incomplete. If downstream code interprets that as a normal extraction failure—or worse, silently uses partial data—the system has confused a **generation-completion failure** with a **business result**.
+
+Anthropic’s stop-reason guidance treats `max_tokens`, `refusal`, `tool_use`, `pause_turn`, and normal completion differently because the application is expected to respond differently to each state.
+
+---
+
+## 4. Architect’s lens
+
+1. **Did Claude actually complete the response?** Check `stop_reason` before trusting the payload.
+
+2. **Is this retryable or terminal?** `max_tokens` usually suggests retrying with sufficient output budget; a refusal requires a separate refusal policy.
+
+3. **Could downstream systems mistake an incomplete generation for business data?** Never let transport/API success substitute for application-level completion checks.
+
+---
+
+## 5. Real-life example
+
+A research platform asks Claude to extract findings from long technical reports into:
+
+```json
+{
+  "finding": "...",
+  "evidence": ["..."],
+  "limitations": ["..."]
+}
+```
+
+Most reports work correctly.
+
+One very long report produces HTTP 200, but:
+
+```text
+stop_reason = "max_tokens"
+```
+
+The team initially treats the response like every other successful API call and forwards its text to the database.
+
+That is the wrong boundary.
+
+The application should instead classify the generation as **incomplete**, avoid persisting it as a valid finding, and retry with an appropriate token budget or a narrower extraction strategy. Anthropic specifically states that output cut off by `max_tokens` may be incomplete and may not conform to the schema.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A compliance platform uses Structured Outputs to generate:
+
+```json
+{
+  "status": "COMPLIANT | NON_COMPLIANT | UNKNOWN",
+  "evidence": ["..."]
+}
+```
+
+Developers assume every HTTP 200 response matches the schema.
+
+Production monitoring finds occasional parsing failures. In those cases, the API response shows:
+
+```text
+stop_reason: "max_tokens"
+```
+
+What is the **best first architectural fix**?
+
+**A.** Add stronger prompt wording telling Claude never to produce malformed JSON.
+
+**B.** Check `stop_reason` before processing the structured payload, treat `max_tokens` as incomplete generation, and retry or redesign the output budget appropriately.
+
+**C.** Add an evaluator model to repair malformed responses.
+
+**D.** Remove Structured Outputs and return free-form text instead.
+
+---
+
+## 7. Spot the clue
+
+The decisive clue is:
+
+> **`stop_reason: "max_tokens"`**
+
+The schema mechanism did not simply “fail.” Claude was **prevented from completing the generation**.
+
+Fix the completion condition before changing prompting or adding another model.
+
+---
+
+## 8. Answer reasoning
+
+**Correct answer: B.**
+
+Anthropic documents `max_tokens` as an exception where Structured Outputs may be incomplete and fail schema conformance. The application should detect that state explicitly and retry with sufficient output capacity rather than treating the response as a valid structured result.
+
+**Why A is tempting but weaker:** prompting cannot override the output-token ceiling. Claude cannot obey “always finish the JSON” after the API stops generation.
+
+**What could change the decision?** If `stop_reason` were normal but the extracted values were factually wrong, increasing `max_tokens` would not help. That would be a semantic-quality problem involving evidence, prompting, or evaluation—the distinction from Session 31.
+
+---
+
+## 9. One-line architect rule
+
+> **Structured output is trustworthy only after you confirm the generation completed in a state your application knows how to handle.**
+
+## 10. Source basis
+
+* Official Anthropic **Structured Outputs** documentation: schema guarantees and exceptions for `refusal` and `max_tokens`.
+* Official Anthropic **Stop reasons** documentation: application handling of different completion states.
+* Exam scenario is **practice-derived**, not an authentic certification question.
+
+
 ## Sep 1, 2026
 
 # Strict Tool Use: Make Tool Calls Type-Safe
