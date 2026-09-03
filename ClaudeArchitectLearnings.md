@@ -1,5 +1,141 @@
 # Some learnings for Claude Architect 
 
+## Sep 3, 2026
+
+# Structured Outputs: Prefer the Smallest Schema That Fits the Task
+
+## 1. Level
+
+**Foundation — Week 7, Session 34**
+
+## 2. Today’s concept
+
+Structured Outputs and strict tool use work by compiling your JSON Schema into a grammar that constrains Claude’s generation. That reliability has an architectural cost: **the more complex the schema, the more expensive it is to compile and maintain**. Anthropic’s current documentation explicitly notes that optional fields, union types, deep nesting, and multiple strict tools increase grammar complexity. ([Claude Platform][1])
+
+This creates a useful design principle:
+
+> **Do not create one enormous “universal” schema simply because Structured Outputs can enforce it.**
+
+For example, imagine a document platform processing invoices, contracts, tax forms, and purchase orders. A single schema containing every possible field may have dozens of optional properties:
+
+| Design                                           | Consequence                                                       |
+| ------------------------------------------------ | ----------------------------------------------------------------- |
+| One universal schema with many optional branches | Simple API surface, but larger grammar and many irrelevant fields |
+| Smaller schema chosen for the document type      | Extra routing step, but simpler contracts and clearer semantics   |
+
+Anthropic currently limits a request containing structured schemas to **24 optional parameters** and **16 parameters using union types**, with additional internal complexity limits. A request can fail with `400: Schema is too complex for compilation` even before those explicit limits are individually exceeded. ([Claude Platform][1])
+
+The architectural goal is therefore not the richest schema. It is the **smallest schema that accurately represents the current task**.
+
+---
+
+## 3. Why an architect cares
+
+Schema design now affects more than developer ergonomics.
+
+The first request using a particular structured-output schema incurs additional latency while Anthropic compiles the grammar. Compiled grammars are cached for up to 24 hours, but changing the schema structure invalidates that cache. ([Claude Platform][1])
+
+A highly dynamic application that creates a slightly different complex schema for every request may therefore lose some of the predictability Structured Outputs were intended to provide.
+
+This is particularly important for enterprise agent architectures where dozens of tools may be available. The right question is not:
+
+> “How many capabilities can I put into one request?”
+
+It is:
+
+> **“Which capabilities and output fields are relevant to this decision right now?”**
+
+---
+
+## 4. Architect’s lens
+
+1. **Does this request actually need every field or strict tool I am exposing?** Remove irrelevant schema surface.
+
+2. **Are optional fields representing genuine uncertainty, or just an overly generic model?** Prefer task-specific schemas where practical.
+
+3. **Would routing first let me use a much simpler downstream schema?** A small classification step can sometimes reduce overall complexity.
+
+---
+
+## 5. Real-life example
+
+An accounts-payable platform initially uses one extraction schema for every financial document. It contains 42 fields covering invoices, credit notes, tax certificates, purchase orders, and receipts; most fields are optional.
+
+The team begins encountering schema-compilation limits and slower first requests.
+
+They redesign the flow:
+
+**Document → classify type → apply type-specific structured schema**
+
+An invoice now exposes only invoice number, supplier, PO reference, line items, tax, currency, and total. A tax certificate receives a different schema.
+
+The routing step adds one decision, but each downstream contract becomes smaller, easier to test, and easier for consuming systems to understand. The architect has reduced complexity at the interface rather than merely increasing retries or token limits.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A company exposes 18 strict tools to Claude and also requests a structured JSON response. Many tool schemas contain deeply nested objects and optional parameters because the same request definition is reused across every business workflow.
+
+The API starts intermittently rejecting configurations because the combined schemas are too complex to compile.
+
+Most user requests need only three or four of the tools.
+
+What is the **best architectural response**?
+
+**A.** Increase `max_tokens` so Claude has more capacity to process the schemas.
+
+**B.** Route requests to a relevant capability set and expose only the strict tools and schema fields needed for that workflow.
+
+**C.** Remove `strict: true` from every tool and rely exclusively on prompt instructions.
+
+**D.** Keep all tools but make their descriptions substantially longer so Claude understands which ones are relevant.
+
+---
+
+## 7. Spot the clue
+
+The decisive conditions are:
+
+> **“combined schemas are too complex to compile”**
+
+and:
+
+> **“Most user requests need only three or four of the tools.”**
+
+This is not a reasoning-token problem. The request is carrying unnecessary **schema surface area**.
+
+---
+
+## 8. Answer reasoning
+
+**Correct answer: B.**
+
+Anthropic explicitly recommends reducing optional parameters, simplifying nested structures, reserving strict mode for tools where schema failures matter, and splitting large sets of strict tools across separate requests or agents when schema complexity becomes excessive. ([Claude Platform][1])
+
+Routing first lets the application present Claude with only the capabilities needed for the current workflow. That reduces grammar complexity while preserving strict guarantees where they deliver value.
+
+**Why C is tempting but weaker:** removing strict mode would reduce grammar complexity immediately, but it also abandons type-safe tool contracts across the entire system. The requirement is better solved by reducing unnecessary scope rather than discarding reliability everywhere.
+
+**What could change the decision?** If all 18 tools were genuinely required together for almost every task and their schemas could not be simplified, splitting the work into separate requests or bounded sub-agents could be justified instead of routing to a single small tool subset.
+
+---
+
+## 9. One-line architect rule
+
+> **Make structured schemas task-specific: expose only the fields and strict tools the current decision actually needs.**
+
+## 10. Source basis
+
+* Official Anthropic **Structured Outputs** documentation: grammar compilation, caching, schema-complexity limits, and recommended simplification strategies. ([Claude Platform][1])
+* Scenario is **practice-derived from current official guidance**, not an authentic certification question.
+
+[1]: https://platform.claude.com/docs/en/build-with-claude/structured-outputs "Structured outputs - Claude Platform Docs"
+
+
+
 ## Sep 2, 2026
 
 ## Structured Outputs: Check Completion Before Trusting the Schema
