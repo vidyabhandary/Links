@@ -1,5 +1,170 @@
 # Some learnings for Claude Architect 
 
+## Sep 4, 2026
+
+# Structural Reliability Is Only One Layer
+
+## 1. Level
+
+**Foundation — Week 7, Session 35**
+
+## 2. Today’s concept
+
+This week separated four problems that are often incorrectly treated as one:
+
+| Failure                                                | Correct layer                                         |
+| ------------------------------------------------------ | ----------------------------------------------------- |
+| Claude’s final JSON has missing/wrongly typed fields   | **Structured Outputs**                                |
+| Claude sends malformed tool arguments                  | **Strict tool use**                                   |
+| Generation stopped before a valid result was completed | **`stop_reason` handling**                            |
+| JSON is valid but the values are wrong                 | **Evidence, reasoning, validation or business logic** |
+
+Structured Outputs constrain Claude’s direct response; `strict: true` constrains tool inputs. Anthropic explicitly supports using them independently or together. ([Claude Platform][1])
+
+The key architectural lesson is:
+
+> **Schema-valid does not mean correct, authorised, complete, or safe.**
+
+A production system still needs to know whether the generation completed normally, whether extracted values are supported by evidence, and whether a proposed action satisfies domain and authorization rules.
+
+---
+
+## 3. Why an architect cares
+
+Structured generation removes an important class of integration failures, but it can create **false confidence**.
+
+For example, this can be perfectly schema-valid:
+
+```json
+{"risk":"LOW","amount":5000000}
+```
+
+Yet the risk might actually be high, the source document may say ₹500,000, or the user may not be authorised to act on the result.
+
+Good architecture therefore assigns each guarantee to the right mechanism rather than trying to make the schema responsible for everything.
+
+---
+
+## 4. Architect’s lens
+
+1. **Is the defect structural, semantic, or business-policy related?**
+
+2. **Did Claude complete normally before I trust the structured payload?**
+
+3. **Am I exposing a schema/tool surface larger than this task actually requires?**
+
+---
+
+## 5. Real-life example
+
+An HR platform extracts promotion requests and can call a tool to update an employee record.
+
+Structured Outputs guarantee that extraction always contains `employee_id`, `proposed_grade`, and `effective_date`. Strict tool use guarantees correctly shaped arguments to `update_employee_grade`.
+
+Neither proves that the source document identified the right employee or that the promotion was approved.
+
+The application therefore checks the response completion state, verifies the employee against the HR system, validates the approval record, and checks the caller’s authority before invoking the update.
+
+It also exposes the grade-update tool only in workflows that actually require it rather than including every HR tool in every Claude request. This keeps the schema boundary smaller and the authorization model clearer.
+
+---
+
+# 6. Friday checkpoint
+
+These are **practice-derived questions**, not authentic certification questions.
+
+### Question 1
+
+Claude extracts invoice data using Structured Outputs. Every response parses successfully, but invoice totals are occasionally incorrect.
+
+What is the best next action?
+
+**A.** Add more required JSON fields.
+**B.** Investigate source evidence, extraction instructions, and evaluation examples.
+**C.** Replace Structured Outputs with free-form text.
+**D.** Enable `strict: true` on the output schema.
+
+### Answer: **B**
+
+### Spot the clue
+
+> **“Every response parses successfully.”**
+
+Structural reliability is already working. The failure is semantic.
+
+Adding schema constraints can restrict shape or allowed values, but cannot determine whether Claude read the source correctly.
+
+---
+
+### Question 2
+
+A tool call is correctly structured, but the API rejects it because the customer has insufficient account balance.
+
+Which statement is correct?
+
+**A.** Strict tool use failed because the tool execution failed.
+**B.** The input schema should contain the customer’s current balance.
+**C.** Strict tool use succeeded; the domain validation correctly rejected a business-invalid operation.
+**D.** Claude should retry the identical call until it succeeds.
+
+### Answer: **C**
+
+### Spot the clue
+
+> **“Correctly structured”** but **“insufficient balance.”**
+
+The tool contract and the business rule are different layers.
+
+Strict tool use guarantees schema-valid tool names and arguments; it does not guarantee that external state permits the requested action. ([Claude Platform][1])
+
+---
+
+### Question 3 — Select TWO
+
+An application uses Structured Outputs. Which TWO conditions require special handling before treating the response as a normal structured result?
+
+**A.** `stop_reason: "end_turn"`
+**B.** `stop_reason: "max_tokens"`
+**C.** `stop_reason: "refusal"`
+**D.** The schema contains an enum
+**E.** The same schema was used yesterday
+
+### Answers: **B and C**
+
+Anthropic documents both as cases where output may not match the requested schema. `max_tokens` can truncate generation; a refusal takes precedence over the schema and is returned as an HTTP 200 response. ([Claude Platform][1])
+
+**Strongest trap:** assuming HTTP success means structured-result success.
+
+---
+
+## 7. Answer-reasoning takeaway
+
+The week’s diagnostic hierarchy is:
+
+**Shape wrong → schema.
+Tool arguments wrong → strict tool use.
+Generation incomplete → completion handling.
+Value wrong → semantic evaluation.
+Action invalid → business rules / authorization.
+Schema too large → reduce exposed capability.**
+
+Anthropic also imposes combined schema-complexity limits and recommends reducing optional fields, simplifying nesting, making only important tools strict, or splitting tool sets when necessary. ([Claude Platform][1])
+
+---
+
+## 8. One-line architect rule
+
+> **Use schemas to guarantee interfaces—not truth, authorization, business validity, or successful completion.**
+
+## 9. Source basis
+
+* Official Anthropic **Structured Outputs** documentation: JSON outputs, strict tool use, invalid-output conditions, and schema-complexity guidance. ([Claude Platform][1])
+* Official Anthropic **Stop reasons** documentation: application handling of `max_tokens`, `refusal`, and normal completion. ([Claude Platform][2])
+
+[1]: https://platform.claude.com/docs/en/build-with-claude/structured-outputs "Structured outputs - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons?utm_source=chatgpt.com "Stop reasons and fallback - Claude Platform Docs"
+
+
 ## Sep 3, 2026
 
 # Structured Outputs: Prefer the Smallest Schema That Fits the Task
