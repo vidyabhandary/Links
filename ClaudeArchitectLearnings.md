@@ -1,5 +1,148 @@
 # Some learnings for Claude Architect 
 
+## Sep 7, 2026
+
+# Week 8, Session 36 — Context Window: Treat It as a Finite Working Set
+
+## 1. Level
+
+**Foundation — Week 8, Session 36**
+
+## 2. Today’s concept
+
+A Claude **context window** is the working set available to the model for the current request. Depending on the model, current Claude context windows can reach **up to 1 million tokens**. Everything sent in the request consumes that capacity: system instructions, conversation history, documents, images, tool definitions, tool results, and the new user message. Claude’s generated output also consumes context capacity. ([Claude Platform][1])
+
+The architectural mistake is to interpret a large context window as:
+
+> **“Put everything in it.”**
+
+More available context does not mean every token is useful. A long-running agent might accumulate old search results, obsolete tool outputs, duplicated documents, and dozens of tool definitions that are irrelevant to the current decision.
+
+Think instead:
+
+> **Context is a finite working set. Keep what Claude needs for the next decision.**
+
+This introduces an important distinction we will build on this week:
+
+| Technique             | What it primarily solves                              |
+| --------------------- | ----------------------------------------------------- |
+| Reduce/remove context | Context capacity and relevance                        |
+| Prompt caching        | Repeated-input **cost and latency**, not context size |
+| Tool search           | Avoid loading irrelevant tool definitions             |
+| Context editing       | Remove old results no longer useful                   |
+
+Anthropic explicitly notes that prompt caching does **not** reduce the tokens occupying the context window; it reduces the cost of repeatedly processing stable prefixes. ([Claude Platform][2])
+
+---
+
+## 3. Why an architect cares
+
+Context growth affects three production qualities simultaneously.
+
+**Capacity:** Eventually the conversation can approach the model’s context limit.
+
+**Cost:** Repeatedly sending large histories consumes input tokens, even where caching may reduce their billed cost.
+
+**Quality:** More information is useful only when it is relevant. Retaining outdated or competing evidence can make the model’s task harder rather than easier.
+
+This becomes particularly important in agent systems because every `tool_result` may be added to history. A research agent making dozens of searches can accumulate large intermediate results even though the final task may depend on only a few conclusions.
+
+The architect therefore designs **context lifecycle**, not merely prompts.
+
+---
+
+## 4. Architect’s lens
+
+1. **What information must Claude retain to make the next decision correctly?**
+
+2. **Which context is stable/reusable versus temporary/intermediate?**
+
+3. **Am I solving a capacity problem, a cost problem, or a relevance problem?** The correct mechanism differs.
+
+---
+
+## 5. Real-life example
+
+A security-investigation agent analyses a suspected cloud breach.
+
+During its first 40 minutes it collects:
+
+* IAM configuration;
+* CloudTrail events;
+* several thousand log lines;
+* vulnerability-scan results;
+* threat-intelligence searches;
+* temporary hypotheses.
+
+Early investigation shows one IP address is irrelevant, two hypotheses are disproved, and most raw logs are no longer useful. But the application continues sending **every previous tool result** on every subsequent turn.
+
+The team considers enabling prompt caching.
+
+That may reduce the cost of repeatedly processing the unchanged prefix, but it does **not free context capacity**.
+
+A better context strategy retains durable findings and evidence still required for the investigation while allowing obsolete intermediate tool results to leave the working context. Anthropic’s current context-management guidance specifically identifies old `tool_result` blocks as a major source of context pressure in long-running agents and provides context editing for this use case. ([Claude Platform][2])
+
+The full investigation record can still remain in the application’s own storage. Claude’s active context does not have to equal the system of record.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A research agent runs for several hours and uses many search and document-analysis tools.
+
+Production monitoring shows that the context window is increasingly consumed by old `tool_result` blocks. Most results were useful only for earlier reasoning steps and are no longer needed. The company must preserve the complete audit history externally.
+
+Which design is the **best fit**?
+
+**A.** Enable prompt caching because cached tokens no longer occupy Claude’s context window.
+
+**B.** Retain the full audit history in application storage while removing obsolete tool-result content from Claude’s active working context.
+
+**C.** Increase the system prompt with instructions telling Claude to ignore old tool results.
+
+**D.** Duplicate the important tool results near the end of every request so Claude notices them.
+
+---
+
+## 7. Spot the clue
+
+The decisive phrase is:
+
+> **“Old `tool_result` blocks … are no longer needed.”**
+
+This is a **context-capacity and relevance** problem.
+
+The requirement to preserve audit history does not mean every historical artifact must remain inside Claude’s current context.
+
+---
+
+## 8. Answer reasoning
+
+**Correct answer: B.**
+
+Anthropic’s context-editing feature is specifically designed for long-running conversations where old tool results have served their purpose. Importantly, Anthropic states that context editing occurs server-side while the client application can continue maintaining the complete unmodified conversation history. ([Claude Platform][3])
+
+**Why A is tempting but weaker:** prompt caching can reduce the cost and latency of repeated stable content, but Anthropic explicitly states that cached tokens still count toward the context window. It therefore does not solve context exhaustion. ([Claude Platform][2])
+
+**What could change the decision?** If context capacity were healthy but the application repeatedly sent a very large, stable system prompt and tool definitions, prompt caching could be the right optimisation because the problem would then be repeated-processing cost rather than working-set size.
+
+---
+
+## 9. One-line architect rule
+
+> **Keep the full history in your system of record; keep only decision-relevant working state in Claude’s active context.**
+
+## 10. Source basis
+
+* Official Anthropic **Context Windows** documentation: what consumes context and current model-dependent capacity. ([Claude Platform][1])
+* Official Anthropic **Manage Tool Context / Context Editing** documentation: tool-result pressure, context editing, prompt caching, and client-history behaviour. ([Claude Platform][2])
+
+[1]: https://platform.claude.com/docs/fr/build-with-claude/context-windows?utm_source=chatgpt.com "Fenêtres de contexte - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/agents-and-tools/tool-use/manage-tool-context?utm_source=chatgpt.com "Manage tool context - Claude Platform Docs"
+[3]: https://platform.claude.com/docs/en/build-with-claude/context-editing?utm_source=chatgpt.com "Context editing - Claude Platform Docs"
+
 ## Sep 4, 2026
 
 # Structural Reliability Is Only One Layer
