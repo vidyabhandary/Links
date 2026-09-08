@@ -1,5 +1,159 @@
 # Some learnings for Claude Architect 
 
+## Sep 8, 2026
+
+# Prompt Caching: Optimize Repeated Context, Don’t Remove It
+
+## 1. Level
+
+**Foundation — Week 8, Session 37**
+
+## 2. Today’s concept
+
+Yesterday’s lesson treated Claude’s context window as a **finite working set**. Today’s distinction is critical:
+
+> **Prompt caching reduces the cost and processing latency of repeated context. It does not reduce how much context Claude is using.**
+
+Consider an enterprise assistant that repeatedly sends:
+
+```text
+40K-token policy handbook
++ 10K-token system instructions/examples
++ current user question
+```
+
+Without caching, the common 50K-token prefix must be processed again for every request.
+
+With prompt caching, Claude can reuse processing of that unchanged prefix. Anthropic’s current API supports both **automatic caching**, where a top-level `cache_control` moves the breakpoint forward as conversations grow, and **explicit breakpoints**, where architects select specific reusable prefixes. ([Claude Platform][1])
+
+But if the cached prefix contains 50K tokens, those 50K tokens **still occupy the context window**. Caching answers:
+
+> “Can I process these repeated tokens more cheaply and quickly?”
+
+It does not answer:
+
+> “Do these tokens still need to be in Claude’s working context?”
+
+That second question belongs to context management.
+
+---
+
+## 3. Why an architect cares
+
+Long-running assistants often resend large amounts of unchanged information:
+
+* system instructions;
+* tool definitions;
+* reference documents;
+* few-shot examples;
+* previous conversation turns.
+
+In agent loops, this repeated processing can become a major cost driver. Anthropic currently recommends prompt caching as a major cost optimisation for agentic workloads because each new turn otherwise reprocesses the growing conversation prefix. ([Claude Platform][2])
+
+However, caching the wrong content produces little benefit. Cache reuse depends on matching the earlier prompt prefix. A timestamp, reordered tool definition, or frequently changing content placed inside the cached prefix can cause cache misses. ([Claude Platform][1])
+
+So good cache architecture separates:
+
+**stable prefix → changing suffix**
+
+rather than caching an arbitrary chunk of a request.
+
+---
+
+## 4. Architect’s lens
+
+1. **Which large prefix remains identical across requests?** Cache stable instructions, tools, documents, or history before frequently changing input.
+
+2. **Am I solving cost/latency or context pressure?** Caching helps the former; pruning, context editing, or compaction addresses the latter.
+
+3. **How frequently will the prefix be reused?** Anthropic’s default cache lifetime is 5 minutes; a 1-hour option exists when reuse intervals are longer. ([Claude Platform][1])
+
+---
+
+## 5. Real-life example
+
+A legal assistant answers questions against a 150,000-token regulatory handbook.
+
+Every request contains the same handbook plus a small user question. Users typically ask several related questions within a few minutes.
+
+The team initially tries summarising the handbook to reduce cost. That lowers token usage but risks removing clauses needed for later questions.
+
+The actual problem is not context capacity: the model can accommodate the handbook, and the full text is valuable. The problem is **reprocessing the same 150K tokens repeatedly**.
+
+Prompt caching is therefore appropriate. The handbook becomes part of a reusable cached prefix while each user question remains outside that stable portion.
+
+Later, if conversations become so long that the context window itself becomes crowded, caching will not solve that new problem. The team would then need context-management techniques such as removing obsolete intermediate material.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A technical-support assistant sends the same:
+
+* 80K-token product manual;
+* system instructions;
+* tool definitions
+
+with every request.
+
+Users usually send five to ten questions within a 20-minute support session. Context-window utilisation remains comfortably below the model limit, but input-processing cost is high.
+
+What is the best first optimisation?
+
+**A.** Remove most of the manual from context after the first question.
+
+**B.** Enable prompt caching for the stable prefix containing the manual and reusable instructions.
+
+**C.** Increase the model’s context-window capacity.
+
+**D.** Add a summarisation agent before every request.
+
+---
+
+## 7. Spot the clue
+
+The decisive conditions are:
+
+> **“same … with every request”**
+
+and:
+
+> **“context-window utilisation remains comfortably below the limit.”**
+
+The problem is repeated processing—not context exhaustion.
+
+---
+
+## 8. Answer reasoning
+
+**Correct answer: B.**
+
+Prompt caching is designed for repetitive requests with large unchanged prefixes such as long documents, system instructions, examples, tools, and conversation history. Anthropic states that cached prefixes can significantly reduce processing cost and latency when reused. ([Claude Platform][1])
+
+**Why A is tempting but weaker:** removing the manual would reduce context and cost, but it may also remove evidence needed for later questions. Nothing in the scenario says context capacity is under pressure, so discarding useful evidence solves the wrong problem.
+
+**What could change the decision?** If the manual plus accumulated conversation were approaching the context limit, the primary problem would become **working-set size**. Context editing, retrieval, compaction, or selective context would then matter more than caching.
+
+One implementation detail is important: keep frequently changing data—such as timestamps or request-specific content—**after** the reusable prefix. Anthropic notes that changing content inside the cached prefix can invalidate reuse; explicit breakpoints are useful when automatic caching would otherwise include frequently changing material. ([Claude Platform][1])
+
+---
+
+## 9. One-line architect rule
+
+> **Cache context you still need repeatedly; remove context you no longer need—they solve different problems.**
+
+## 10. Source basis
+
+* Official Anthropic **Prompt Caching** documentation: automatic/explicit caching, prefix reuse, 5-minute and 1-hour TTLs, and cache invalidation behaviour. ([Claude Platform][1])
+* Official Anthropic **cost optimisation** guidance: prompt caching as a major optimisation for repeated context in agentic workloads. ([Claude Platform][2])
+* Exam scenario is **practice-derived**, not an authentic certification question.
+
+[1]: https://platform.claude.com/docs/en/build-with-claude/prompt-caching "Prompt caching - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence "Optimizing for cost and intelligence - Claude Platform Docs"
+
+
 ## Sep 7, 2026
 
 # Week 8, Session 36 — Context Window: Treat It as a Finite Working Set
