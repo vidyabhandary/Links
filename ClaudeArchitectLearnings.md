@@ -1,5 +1,143 @@
 # Some learnings for Claude Architect 
 
+## Sep 9, 2026
+
+# Compaction: Preserve State, Not the Full Transcript
+
+## 1. Level
+
+**Foundation — Week 8, Session 38**
+
+## 2. Today’s concept
+
+Yesterday’s prompt caching lesson addressed **reprocessing cost**. Today’s problem is different: what happens when a useful conversation itself becomes too large?
+
+Anthropic’s **server-side compaction** automatically summarizes older conversation history when the input reaches a configured token threshold. Claude creates a `compaction` block containing the state needed to continue; on later requests, content before that block is replaced by the summary. Anthropic currently recommends server-side compaction for long-running conversations and agentic workflows. ([Claude Platform][1])
+
+The architectural idea is more important than the API feature:
+
+> **Preserve the state required to continue the task, rather than preserving every token that produced that state.**
+
+Suppose a coding agent has spent 60 turns investigating a bug. What it may need going forward is:
+
+* root cause discovered;
+* files changed;
+* architectural decisions made;
+* tests still failing;
+* next actions.
+
+It usually does **not** need every intermediate hypothesis, shell output, and abandoned debugging discussion verbatim.
+
+That is where compaction differs from simply clearing old tool results. **Clearing deletes selected expendable content. Compaction replaces a larger history with a synthesized representation of what matters.**
+
+Anthropic’s current compaction feature is beta; its default trigger is 150,000 input tokens, with configurable triggers of at least 50,000 tokens. ([Claude Platform][1])
+
+---
+
+## 3. Why an architect cares
+
+Long context creates two competing requirements:
+
+**Continuity:** Claude must remember important decisions and unresolved work.
+
+**Efficiency:** the active context should not indefinitely accumulate every historical interaction.
+
+Blind truncation can lose critical decisions. Keeping everything eventually increases context pressure and can degrade response quality. Compaction creates a middle path: **compress history into durable working state**. Anthropic explicitly positions it for long chats and tool-heavy tasks that might otherwise approach the context-window limit. ([Claude Platform][1])
+
+The architect must therefore think about **what information survives compression**. For specialised workloads, Anthropic allows custom compaction instructions—for example, preserving code snippets, variable names, or technical decisions. Importantly, custom instructions **replace**, rather than augment, the default summarisation instructions. ([Claude Platform][1])
+
+---
+
+## 4. Architect’s lens
+
+1. **Does later work require the exact historical content, or only its resulting state and decisions?**
+
+2. **What information would be damaging to lose during summarisation—decisions, identifiers, evidence, unresolved risks?**
+
+3. **Should information be compacted, externally persisted, or retained verbatim because it remains authoritative evidence?**
+
+---
+
+## 5. Real-life example
+
+A Claude-based software-delivery agent spends several hours modernising a legacy service.
+
+It has inspected 30 files, run tests repeatedly, rejected two implementation approaches, modified database mappings, and discovered that one failing integration test depends on an undocumented legacy behaviour.
+
+Eventually the conversation becomes very large.
+
+Simply dropping the oldest half is dangerous: that section contains the reason a seemingly cleaner implementation was rejected.
+
+Compaction instead preserves a state such as:
+
+**Chosen approach:** retain legacy mapping until consumer migration.
+**Completed:** API refactor and unit tests.
+**Outstanding:** integration test `customer_sync_04`.
+**Critical constraint:** downstream service still expects legacy identifier.
+**Next step:** add compatibility adapter.
+
+The raw transcript can remain in application storage for audit. Claude needs the **working state**, not every historical debugging token.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+An enterprise coding agent handles development tasks that may last several hours. Conversations contain many code discussions, tool calls, failed hypotheses, design decisions, and test results.
+
+The agent eventually approaches its context limit, but later steps must retain important architectural decisions and unresolved issues.
+
+Which approach is the **best fit**?
+
+**A.** Enable prompt caching so older messages stop occupying context.
+
+**B.** Delete the oldest messages once context utilisation reaches 80%.
+
+**C.** Use compaction so older history is summarized into task state while the workflow continues with a smaller active context.
+
+**D.** Increase `max_tokens` on every response.
+
+---
+
+## 7. Spot the clue
+
+The decisive requirement is:
+
+> **“must retain important architectural decisions and unresolved issues.”**
+
+The goal is not merely to remove tokens. The application needs to **compress history while preserving continuity**.
+
+---
+
+## 8. Answer reasoning
+
+**Correct answer: C.**
+
+Anthropic’s server-side compaction summarizes the existing conversation, emits that summary as a `compaction` block, and lets subsequent requests continue from the compacted state rather than the complete earlier transcript. ([Claude Platform][1])
+
+**Why B is tempting but weaker:** deleting old messages certainly reduces context size, but age does not tell you importance. An early architectural constraint may matter much more than a recent diagnostic log.
+
+**What could change the decision?** If context growth came almost entirely from disposable search or tool results while the actual conversation history remained useful and compact, targeted **context editing** could be better than summarizing the whole history. Anthropic supports clearing older tool-result content independently. ([Claude Platform][2])
+
+There is also an important boundary: compaction is a **continuity mechanism**, not necessarily your audit store. If regulation requires exact transcripts, citations, approvals, or source evidence, retain those externally rather than assuming a generated summary is an authoritative historical record.
+
+---
+
+## 9. One-line architect rule
+
+> **When history becomes too large, compact the journey into the state needed to continue—but preserve authoritative evidence outside the model context.**
+
+## 10. Source basis
+
+* Official Anthropic **Compaction** documentation: server-side summarisation, trigger behaviour, compaction blocks, custom instructions, and recommended long-running-agent usage. ([Claude Platform][1])
+* Official Anthropic **Context Editing** documentation for the distinction between summarising history and selectively clearing expendable tool results. ([Claude Platform][2])
+* Exam scenario is **practice-derived**, not an authentic certification question.
+
+[1]: https://platform.claude.com/docs/en/build-with-claude/compaction "Compaction - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/build-with-claude/context-editing "Context editing - Claude Platform Docs"
+
+
 ## Sep 8, 2026
 
 # Prompt Caching: Optimize Repeated Context, Don’t Remove It
