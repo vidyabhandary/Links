@@ -1,5 +1,379 @@
 # Links
 
+## Sept 09, 2026
+
+1. [Built for Reliability: How American Express Processes Payments at Scale](https://blog.bytebytego.com/p/built-for-reliability-how-american)
+
+## Cell-Based Architecture — Consolidated Learnings
+
+### 1. Core idea
+
+A **cell is a self-contained failure domain** that has everything needed to process a workload independently:
+
+* Application services
+* Databases
+* Caches
+* Configuration
+* Networking/DNS
+* Local observability
+
+The goal is not just scalability. It is primarily **blast-radius reduction and fault isolation**.
+
+> A failure in one cell should not take down the rest of the platform.
+
+---
+
+## 2. How it differs from microservices
+
+**Microservices** split the system by business/function boundaries.
+
+**Cells** split the system by **failure boundaries**.
+
+A single cell can contain many microservices.
+
+```text
+Cell A
+ ├─ Payment Service
+ ├─ Fraud Service
+ ├─ Routing Service
+ ├─ Local DB
+ └─ Cache
+
+Cell B
+ ├─ Payment Service
+ ├─ Fraud Service
+ ├─ Routing Service
+ ├─ Local DB
+ └─ Cache
+```
+
+---
+
+## 3. Most important architectural rule
+
+### No synchronous cross-cell dependencies on the critical path
+
+Avoid:
+
+```text
+Cell A → Cell B → Cell C
+```
+
+If Cell A needs Cell B synchronously, Cell B's failure becomes Cell A's failure.
+
+Instead:
+
+```text
+Cell A → local processing
+Cell B → local processing
+Cell C → local processing
+```
+
+Cells should be able to operate independently.
+
+---
+
+## 4. Routing is critical
+
+A thin, highly available **global router** decides which cell should process a request.
+
+```text
+Client
+   ↓
+Global Router
+  /   |   \
+ A    B    C
+```
+
+Routing can use:
+
+* Customer/account ID
+* Partner
+* Geography
+* Market
+* Payment type
+* Hashing/sharding rules
+
+The router should contain **minimal business logic**.
+
+Otherwise, the router itself becomes a large centralized dependency.
+
+---
+
+## 5. Data strategy is the hardest part
+
+### Relatively static data
+
+Replicate it to every cell ahead of time.
+
+Examples:
+
+* Reference data
+* Product configuration
+* Country/currency information
+* Merchant classifications
+
+```text
+Reference Data
+    ↓ async
+ ┌──┼──┐
+ A  B  C
+```
+
+Transactions therefore don't need a central lookup.
+
+### Highly dynamic data
+
+Instead of synchronously replicating everything everywhere:
+
+> **Route the request to the cell where the authoritative data already lives.**
+
+```text
+Request
+   ↓
+Router
+   ↓
+Cell B ← authoritative state
+```
+
+This avoids expensive cross-cell synchronization.
+
+---
+
+## 6. Keep replication off the critical path
+
+Replication can still happen between cells, but it should normally be:
+
+**asynchronous**
+
+rather than:
+
+**transaction waits → replicate → confirm → continue**
+
+The transaction path should remain local and fast.
+
+---
+
+## 7. Failure recovery: reroute and restart
+
+A particularly useful AmEx design choice:
+
+If a cell fails mid-transaction, don't attempt to transfer all intermediate state and resume elsewhere.
+
+Instead:
+
+```text
+Cell A
+Step 1 ✓
+Step 2 ✓
+Step 3 ✗
+
+        ↓ failure
+
+Router → Cell B
+
+Step 1
+Step 2
+Step 3
+```
+
+The transaction is **restarted from its original input**.
+
+Why?
+
+Because resuming requires sharing internal execution state between cells, creating coupling and consistency problems.
+
+For short-running transactions, repeating a few milliseconds of processing is often much simpler.
+
+---
+
+## 8. Define a "point of no return"
+
+Restart is safe only until an irreversible action occurs.
+
+Example:
+
+```text
+Validate
+   ↓
+Enrich
+   ↓
+Fraud check
+   ↓
+Routing
+   ↓
+----------------
+Point of no return
+----------------
+   ↓
+External payment authorization
+```
+
+Therefore:
+
+**Move irreversible actions as late in the workflow as possible.**
+
+This maximizes the portion of the transaction that can safely be restarted.
+
+---
+
+## 9. Idempotency is essential
+
+Every request should carry a stable transaction/request ID.
+
+```text
+TX-123
+```
+
+If processing is retried:
+
+```text
+Cell A → TX-123
+Cell fails
+
+Cell B → TX-123
+```
+
+downstream systems can detect that they have already processed it.
+
+Without idempotency, restart-based recovery could cause:
+
+* Double payments
+* Duplicate orders
+* Duplicate notifications
+* Repeated external calls
+
+---
+
+## 10. Failover should be gradual
+
+Recovery doesn't have to mean:
+
+```text
+Cell A → 0%
+Cell B → 100%
+```
+
+Use progressive shifting:
+
+```text
+90 / 10
+70 / 30
+50 / 50
+20 / 80
+0 / 100
+```
+
+This supports:
+
+* Canary recovery
+* Controlled draining
+* Gradual failback
+* Validation under real load
+
+---
+
+## 11. Non-critical dependencies must not block the transaction
+
+The payment system takes a strong position:
+
+**availability of the business transaction is more important than availability of supporting systems.**
+
+Examples:
+
+### Logging
+
+If logging becomes overloaded:
+
+```text
+Payment → continue
+Logs    → potentially drop some non-critical events
+```
+
+Do not fail a customer transaction because the logging system is unavailable.
+
+### Configuration
+
+Cache configuration locally.
+
+```text
+Configuration service
+       ↓ async refresh
+Local in-memory config
+```
+
+If the central config service fails, the cell continues using the **last known good configuration**.
+
+---
+
+## 12. Observability follows the same pattern
+
+Monitoring is primarily local:
+
+```text
+Cell A → local metrics/logs/traces
+Cell B → local metrics/logs/traces
+Cell C → local metrics/logs/traces
+
+            ↓ async
+
+     Global observability
+```
+
+If the central analytics platform fails, you may temporarily lose global visibility.
+
+You should **not lose transaction processing**.
+
+---
+
+# Architecture principles to remember
+
+| Principle                             | Why                                                 |
+| ------------------------------------- | --------------------------------------------------- |
+| **Cells are failure domains**         | Reduce blast radius                                 |
+| **Cells are self-contained**          | Avoid cascading failures                            |
+| **No synchronous cross-cell calls**   | Preserve isolation                                  |
+| **Keep transaction processing local** | Predictable latency and reliability                 |
+| **Route work to the data**            | Avoid synchronous replication                       |
+| **Pre-position static data**          | Remove central dependencies                         |
+| **Use async replication**             | Keep consistency work off critical path             |
+| **Restart rather than resume**        | Avoid shared execution state                        |
+| **Use idempotency**                   | Make retries safe                                   |
+| **Delay irreversible actions**        | Increase recoverable transaction window             |
+| **Thin global router**                | Prevent central chokepoint from becoming a monolith |
+| **Degrade supporting systems first**  | Protect business availability                       |
+| **Gradual traffic shifting**          | Safer failover and recovery                         |
+
+## The bigger architecture lesson
+
+The most important takeaway is:
+
+> **Reliability is achieved by controlling where failures are allowed to propagate.**
+
+Traditional resilience often focuses on:
+
+```text
+Retries
+Replicas
+Monitoring
+Auto-scaling
+```
+
+Cell architecture adds something more fundamental:
+
+```text
+Explicit failure boundaries
++
+workload locality
++
+data locality
++
+independent recovery
+```
+
+So instead of trying to make every component **never fail**, the architecture assumes failures will happen and ensures they remain **small, isolated, and recoverable**.
+
+
 ## July 27, 2026
 
 1. [How Microsoft Ships AI](https://blog.bytebytego.com/p/how-microsoft-ships-ai-agents-at)
