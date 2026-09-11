@@ -1,5 +1,9 @@
 # Some learnings for Claude Architect 
 
+## Sep 10, 2026
+
+
+
 ## Sep 9, 2026
 
 # Compaction: Preserve State, Not the Full Transcript
