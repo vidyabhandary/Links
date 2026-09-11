@@ -1,7 +1,158 @@
 # Some learnings for Claude Architect 
 
-## Sep 10, 2026
+## Sep 11, 2026
 
+# Tools, Contracts, and Context
+
+## 1. Level
+
+**Foundation — Week 8, Session 40**
+
+This fourth-Friday checkpoint tests the architectural pattern running through the recent lessons:
+
+> **Put each responsibility at the correct layer.**
+
+A strong Claude architecture distinguishes **model reasoning**, **tool execution**, **schema enforcement**, **business validation**, and **context management**. Many plausible exam distractors solve a real problem—but at the wrong layer.
+
+---
+
+## 2. Decision map
+
+| Symptom                                | First place to look                                      |
+| -------------------------------------- | -------------------------------------------------------- |
+| Claude chooses the wrong action/tool   | Tool descriptions, orchestration, available capabilities |
+| Tool arguments have wrong types/fields | Strict tool use                                          |
+| Final response has malformed JSON      | Structured Outputs                                       |
+| JSON is valid but factually wrong      | Grounding, prompting, evaluation                         |
+| Valid tool call violates policy        | Application authorization/business rules                 |
+| Repeated static context is expensive   | Prompt caching                                           |
+| Old tool results consume context       | Context editing                                          |
+| Long conversation state must survive   | Compaction                                               |
+
+Anthropic currently distinguishes JSON Structured Outputs from strict tool use: the former constrains Claude's response schema, while `strict: true` constrains tool names and inputs. ([Claude Platform][1])
+
+---
+
+# 3. Checkpoint
+
+These are **practice-derived scenarios, not authentic Anthropic certification questions.**
+
+### Question 1 — Wrong layer
+
+A procurement agent calls `approve_purchase` with perfectly schema-valid arguments. The request is for ₹8 million, but the employee's approval limit is ₹1 million.
+
+What should prevent execution?
+
+**A.** A larger context window
+**B.** Strict tool use
+**C.** Application authorization/business-policy validation
+**D.** Prompt caching
+
+**Answer: C**
+
+**Spot the clue:** the arguments are already **schema-valid**. Strict tool use guarantees input structure, not whether the user is entitled to perform the operation. ([Claude Platform][1])
+
+The strongest distractor is **B** because validation sounds like a schema concern. But monetary authority depends on live business state and identity.
+
+---
+
+### Question 2 — Diagnose before optimizing
+
+A customer-support agent repeatedly sends a 90K-token troubleshooting manual. Context usage remains well within limits, but each new request repeatedly processes the same material.
+
+Best first optimisation?
+
+**A.** Compaction
+**B.** Prompt caching
+**C.** Delete half the manual
+**D.** Context editing
+
+**Answer: B**
+
+**Spot the clue:** **same material repeatedly + no context-capacity problem**.
+
+Prompt caching targets repeated stable prefixes. Context editing or compaction would be appropriate only if active context itself needed reduction. Anthropic's prompt cache supports reusable prompt prefixes with configurable cache behaviour. ([Claude Platform][2])
+
+---
+
+### Question 3 — Select TWO
+
+A research agent's context is approaching its limit. Which TWO situations favour **different** context-management mechanisms?
+
+**A.** Thousands of old search results have no further value.
+**B.** Earlier architecture discussions contain decisions still needed later.
+**C.** The system prompt is repeatedly reused unchanged.
+**D.** Tool arguments occasionally contain strings instead of integers.
+
+**Answers: A and B**
+
+For **A**, context editing can clear obsolete tool-result content.
+
+For **B**, compaction is better suited to preserving the meaning and working state of a long conversation while replacing the full transcript with a summary. Anthropic recommends server-side compaction over SDK-side compaction for most use cases. ([Claude Platform][3])
+
+**Trap:** C is an optimisation opportunity, but it is a **caching** problem rather than a context-reduction mechanism.
+
+---
+
+### Question 4 — Valid structure, wrong answer
+
+Claude extracts:
+
+```json
+{"currency":"USD","total":27500}
+```
+
+The schema is correct, but the source invoice actually says **$2,750**.
+
+What is the best next investigation?
+
+**A.** Make `total` a required field.
+**B.** Enable strict tool use.
+**C.** Examine extraction grounding and evaluation examples.
+**D.** Increase schema complexity.
+
+**Answer: C**
+
+**Spot the clue:** **the schema already succeeded**.
+
+A constrained output can guarantee that `total` is numeric. It cannot guarantee Claude extracted the correct number from the source. This is a **semantic-quality defect**, requiring evidence inspection and evaluation rather than stronger syntax enforcement.
+
+---
+
+### Question 5 — Integrated scenario
+
+A software-delivery agent operates for several hours. It accumulates large shell outputs, code-search results, decisions about rejected approaches, and unresolved test failures.
+
+The organisation wants to reduce context usage **without losing the reasoning state needed to continue**.
+
+Best design?
+
+**A.** Cache the entire conversation indefinitely.
+**B.** Delete all turns older than 30 minutes.
+**C.** Clear disposable tool results and compact broader history when necessary.
+**D.** Increase output `max_tokens`.
+
+**Answer: C**
+
+This combines two mechanisms according to information value: context editing removes content that has finished its job; compaction preserves important state from history. Anthropic also notes that the client can maintain the full unmodified conversation even when server-side context editing changes what Claude receives. ([Claude Platform][3])
+
+**What could change the decision?** If exact historical evidence must remain directly available to Claude—not merely externally auditable—some source material may need to remain verbatim or be retrieved again instead of summarized.
+
+---
+
+## 4. One-line architect rule
+
+> **Diagnose the failure class first: syntax, semantics, authorization, orchestration, cost, and context pressure require different controls.**
+
+## 5. Source basis
+
+* Official Anthropic documentation on **Strict Tool Use and Structured Outputs**. ([Claude Platform][1])
+* Official Anthropic documentation on **Context Editing, Compaction, and Prompt Caching**. ([Claude Platform][3])
+* All checkpoint questions are **practice-derived**, not authentic certification questions.
+
+[1]: https://platform.claude.com/docs/en/agents-and-tools/tool-use/strict-tool-use?utm_source=chatgpt.com "Strict tool use - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/de/build-with-claude/prompt-caching?utm_source=chatgpt.com "Prompt-Caching - Claude Platform Docs"
+[3]: https://platform.claude.com/docs/en/build-with-claude/context-editing?utm_source=chatgpt.com "Context editing - Claude Platform Docs"
 
 
 ## Sep 9, 2026
