@@ -1,5 +1,283 @@
 # Some learnings for Claude Architect 
 
+## Sep 15, 2026
+
+# Week 9, Session 42 — Choosing the Right Evaluator: Code, LLM, or Human
+
+## 1. Level
+
+**Foundation — Week 9, Session 42**
+
+## 2. Today’s concept
+
+Yesterday established that you should define **measurable success criteria before tuning prompts**. The next question is: **who—or what—should judge whether the system met those criteria?**
+
+Anthropic groups evaluation approaches into three broad categories: **code-based grading, LLM-based grading, and human grading**. Their trade-offs differ substantially. Anthropic recommends choosing the *fastest, most reliable, and most scalable method capable of measuring the criterion*. ([Claude Platform][1])
+
+| Grader    | Best fit                                                       | Main limitation                 |
+| --------- | -------------------------------------------------------------- | ------------------------------- |
+| **Code**  | Exact values, formats, required strings, deterministic rules   | Cannot judge nuanced quality    |
+| **LLM**   | Relevance, faithfulness, tone, completeness, reasoning quality | Grader itself can make mistakes |
+| **Human** | Ambiguous/high-stakes judgment, calibration                    | Expensive and slow              |
+
+The key architectural principle is therefore:
+
+> **Do not use an LLM grader when deterministic code can answer the question reliably.**
+
+If an extraction must return `currency="USD"`, code can test it. If an agent must never call an unauthorized tool, telemetry can test it. Asking another Claude call whether these requirements were satisfied adds cost and another probabilistic component.
+
+Conversely, code cannot easily determine whether a customer-service response is “empathetic without being patronising” or whether a summary captures the material implications of a contract. For such criteria, Anthropic recommends LLM-based grading with **explicit rubrics and constrained scoring**, while first verifying that the grader itself is reliable. ([Claude Platform][1])
+
+---
+
+## 3. Why an architect cares
+
+The evaluator becomes part of your system's engineering pipeline.
+
+Suppose version B scores 94% while version A scores 89%. That difference matters only if the grader itself measures the desired behaviour consistently. An unreliable evaluator can cause you to deploy a **worse model, prompt, retrieval configuration, or agent workflow because the measurement system preferred it**.
+
+For nuanced or high-risk domains, a useful pattern is therefore:
+
+**humans define/calibrate the standard → automated grader scales it.**
+
+Anthropic's legal-summarization guidance, for example, describes using rubric-driven LLM evaluation at scale while retaining expert human evaluation on a smaller sample as a validation check. ([Claude Platform][2])
+
+---
+
+## 4. Architect’s lens
+
+1. **Can this criterion be evaluated deterministically?** If yes, prefer code over another model call.
+
+2. **If judgment is subjective, is the LLM grader operating against a precise rubric rather than “does this look good?”**
+
+3. **How will I verify that the grader agrees sufficiently with trusted human judgment before using it at scale?**
+
+---
+
+## 5. Real-life example
+
+A healthcare-document system extracts medication information and produces a patient-friendly explanation.
+
+The team initially uses one LLM grader for everything. That grader checks whether the medication name is correct, whether dosage is numeric, whether required fields exist, whether the explanation is understandable, and whether it preserves important warnings.
+
+This is unnecessarily fragile.
+
+The team separates evaluation:
+
+* schema and required fields → **code**
+* medication/dosage against labelled reference data → **code**
+* explanation completeness and clarity → **LLM rubric**
+* a sample of clinically significant cases → **expert review**
+
+Now deterministic failures are measured exactly, while Claude evaluates only qualities requiring semantic judgment. Human clinicians periodically validate whether the automated rubric continues to reflect clinically meaningful quality.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A support assistant must satisfy three requirements:
+
+1. always include the case ID supplied by the CRM;
+2. answer using information contained in the provided support documentation;
+3. maintain a professional and empathetic tone.
+
+The team proposes using an LLM grader for all three requirements.
+
+What is the **best evaluation architecture**?
+
+**A.** Use an LLM grader for all requirements because the application itself uses an LLM.
+
+**B.** Use human reviewers for every test because humans provide the highest-quality judgment.
+
+**C.** Use code to verify the case ID and LLM rubrics for groundedness and tone, with human samples used to validate the nuanced graders.
+
+**D.** Use exact string matching for all three requirements.
+
+---
+
+## 7. Spot the clue
+
+The requirements have **different degrees of determinism**.
+
+“Contains the correct case ID” has an objective answer. “Professional and empathetic” requires semantic judgment.
+
+Using one grading mechanism for both ignores that distinction.
+
+---
+
+## 8. Answer reasoning
+
+**Correct answer: C.**
+
+Anthropic recommends code-based grading where rules can reliably determine correctness because it is fast, reliable, and scalable. LLM-based grading is appropriate for complex judgments, provided the rubric is detailed and the grader's reliability is tested before scaling. ([Claude Platform][1])
+
+For groundedness, the rubric might explicitly require every material factual claim to be supported by supplied documentation. For tone, it could define a bounded scale with observable characteristics rather than asking whether the response is simply “good.”
+
+**Why A is tempting but weaker:** one LLM grader is operationally simple, but it introduces probabilistic judgment where an exact programmatic check would be superior.
+
+**What could change the decision?** If a criterion is legally or clinically consequential and experts routinely disagree with the automated grader, human review may need to remain part of the production acceptance process rather than merely calibrating the evaluator.
+
+---
+
+## 9. One-line architect rule
+
+> **Use deterministic graders for deterministic requirements, LLM graders for nuanced requirements, and humans to establish or validate judgment where the stakes justify it.**
+
+## 10. Source basis
+
+* Official Anthropic **Define success criteria and build evaluations** guidance: code-, human-, and LLM-based grading, rubric design, and grader reliability. ([Claude Platform][1])
+* Official Anthropic **Legal summarization** guidance: rubric-driven LLM evaluation with expert human validation. ([Claude Platform][2])
+* Exam scenario is **practice-derived**, not an authentic certification question.
+
+[1]: https://platform.claude.com/docs/en/test-and-evaluate/develop-tests?utm_source=chatgpt.com "Define success criteria and build evaluations - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/about-claude/use-case-guides/legal-summarization?utm_source=chatgpt.com "Legal summarization - Claude Platform Docs"
+
+
+## Sep 14, 2026
+
+# Week 9, Session 41 — Evals: Define “Good” Before You Tune the Prompt
+
+## 1. Level
+
+**Foundation — Week 9, Session 41**
+
+## 2. Today’s concept
+
+This week moves from **context management** to **reliability and evaluation**.
+
+A common failure pattern in Claude applications is:
+
+> response looks weak → tweak prompt → try again → tweak prompt again.
+
+The problem is not that prompt iteration is wrong. The problem is that without an explicit definition of success, you cannot tell whether the new prompt is actually better or merely *different*.
+
+Anthropic’s evaluation guidance starts with **success criteria**, then builds evaluations that measure those criteria. Good criteria should be specific, measurable, achievable, and relevant to the application. ([Claude][1])
+
+For example, “the support bot should answer well” is not an actionable target. A production definition might instead require:
+
+| Criterion          | Example target                  |
+| ------------------ | ------------------------------- |
+| Answer correctness | ≥95% on validated support cases |
+| Unsupported claims | <1%                             |
+| Correct escalation | ≥98% for high-risk cases        |
+| p95 latency        | <3 seconds                      |
+
+The key architectural shift is this:
+
+> **Prompt quality is not the goal. Application behaviour is the goal.**
+
+A beautifully written prompt that produces worse task outcomes should lose to an inelegant prompt that consistently satisfies measurable requirements.
+
+---
+
+## 3. Why an architect cares
+
+LLM systems have multiple competing qualities: accuracy, latency, cost, safety, tone, context use, consistency, and business outcomes.
+
+Optimising one can damage another.
+
+For example, a longer reasoning prompt might improve difficult-case accuracy but double latency and cost. A stricter refusal prompt might improve safety while unnecessarily escalating legitimate requests.
+
+Therefore an architect should normally define **multiple success dimensions**, rather than reducing evaluation to a single “accuracy” score. Anthropic explicitly recommends multidimensional evaluation where the use case requires it. ([Claude][1])
+
+This also changes design reviews. Instead of debating whether one prompt “sounds better,” the team can ask whether version B improves the metrics that actually matter.
+
+---
+
+## 4. Architect’s lens
+
+1. **What observable behaviour defines success for this specific workload?**
+
+2. **Which failures are merely inconvenient, and which are unacceptable?**
+
+3. **What baseline must a proposed prompt, model, RAG change, or agent design beat before production rollout?**
+
+---
+
+## 5. Real-life example
+
+A financial-research assistant answers analyst questions using internal reports.
+
+The team initially measures only whether analysts “like the response.” Prompt changes therefore become subjective debates.
+
+They replace this with four criteria:
+
+* factual claims supported by retrieved evidence;
+* material numbers reproduced correctly;
+* uncertainty stated when evidence is insufficient;
+* response returned within the agreed latency target.
+
+They create representative test cases containing normal questions, ambiguous questions, missing evidence, conflicting documents, and numerical tables.
+
+Now a new prompt that sounds more polished but increases unsupported claims fails the release gate.
+
+Conversely, a slightly shorter response style that preserves factual accuracy while reducing latency can objectively be judged an improvement.
+
+The eval has converted prompt engineering from **taste-based iteration into measurable engineering**.
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A company is improving a Claude-based insurance assistant.
+
+Engineers have created three new system prompts. During informal testing, different team members prefer different versions. Management asks which prompt should be released.
+
+What should the architect do **first**?
+
+**A.** Select the prompt preferred by the largest number of engineers.
+
+**B.** Use the longest prompt because it contains the most instructions.
+
+**C.** Define measurable success criteria and evaluate all three prompts on representative test cases.
+
+**D.** Deploy all three randomly to production and inspect customer complaints.
+
+---
+
+## 7. Spot the clue
+
+The decisive phrase is:
+
+> **“Different team members prefer different versions.”**
+
+The team lacks an objective definition of success.
+
+The first problem is therefore not prompt wording—it is **evaluation design**.
+
+---
+
+## 8. Answer reasoning
+
+**Correct answer: C.**
+
+Anthropic recommends defining success criteria before building and refining evaluations. Evals should reflect the real task distribution and include relevant edge cases rather than relying only on a few hand-picked examples. ([Claude][1])
+
+**Why D is tempting but weaker:** production A/B testing can eventually be valuable, but deploying poorly characterised variants first exposes users to unknown failure modes and makes diagnosis harder. Offline evaluation should establish a credible baseline before controlled production experimentation.
+
+Anthropic also recommends choosing the **fastest, most reliable, scalable grader appropriate to the criterion**. Deterministic tasks may use code-based exact or string matching; nuanced properties can use human or LLM-based grading with clear rubrics. ([Claude][1])
+
+**What could change the decision?** If all candidate prompts already passed rigorous offline acceptance criteria and the remaining question concerned real user preference or conversion behaviour, a controlled production A/B test could become the appropriate next step.
+
+---
+
+## 9. One-line architect rule
+
+> **Never optimize an LLM system against “looks better”; define measurable success first, then make changes prove they improve it.**
+
+## 10. Source basis
+
+* Official Anthropic **Define success criteria and build evaluations** guidance: measurable multidimensional criteria, representative test cases, edge cases, and grading approaches. ([Claude][1])
+* Official Anthropic **customer-support agent** guidance reinforces defining task-level success criteria before evaluating and refining prompts. ([Claude][2])
+* Exam scenario is **practice-derived**, not an authentic certification question.
+
+[1]: https://platform.claude.com/docs/en/test-and-evaluate/develop-tests?utm_source=chatgpt.com "Define success criteria and build evaluations - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/about-claude/use-case-guides/customer-support-chat?utm_source=chatgpt.com "Customer support agent - Claude Platform Docs"
+
 ## Sep 11, 2026
 
 # Tools, Contracts, and Context
