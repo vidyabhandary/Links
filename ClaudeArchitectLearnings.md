@@ -1,8 +1,150 @@
 # Some learnings for Claude Architect 
 
+## Sep 16, 2026
+
+# Eval Dataset Design: Test the Real Workload, Not the Easy Cases
+
+## 1. Level
+
+**Foundation — Week 9, Session 43**
+
+## 2. Today’s concept
+
+Yesterday focused on **who should grade an evaluation**. Today’s concept is more fundamental: **what should be in the evaluation set?**
+
+A model can score extremely well on an eval that is badly designed. If a support assistant is tested only on short, explicit, well-written tickets, a 97% score tells you very little about production performance where users are vague, emotional, contradictory, multilingual, or raise several issues at once.
+
+Anthropic’s current evaluation guidance says test cases should **mirror the real-world task distribution and include edge cases**. It gives examples such as irrelevant or missing data, unusually long inputs, harmful or irrelevant requests, and ambiguous cases where even humans may disagree. ([Claude Platform][1])
+
+A useful evaluation set therefore contains at least three kinds of cases:
+
+| Case type            | Purpose                                          |
+| -------------------- | ------------------------------------------------ |
+| **Representative**   | Measure normal production performance            |
+| **Edge / difficult** | Expose known failure boundaries                  |
+| **Regression**       | Ensure previously discovered failures stay fixed |
+
+The important distinction is that these groups answer different questions. Representative cases tell you **how often the system succeeds normally**. Edge cases tell you **where it breaks**. Regression cases tell you **whether your latest change reintroduced something you had already fixed**.
+
+Do not let edge cases overwhelm the main dataset either. If 80% of your eval consists of bizarre adversarial inputs that occur in 0.1% of production requests, the aggregate score may no longer represent user experience. Track difficult subsets separately where appropriate.
+
+---
+
+## 3. Why an architect cares
+
+Evaluation-set composition directly influences architecture decisions.
+
+Suppose Model A scores 94% and Model B scores 91%. You might select A—until you discover the dataset contains almost no long-context cases, while long documents account for 40% of actual traffic and Model B handles those substantially better.
+
+Similarly, a prompt change may improve the average score while causing catastrophic failures on a rare but high-impact workflow such as approving refunds, revealing confidential information, or failing to escalate a safety-sensitive case.
+
+Architects should therefore care about **distribution and severity**, not only averages.
+
+---
+
+## 4. Architect’s lens
+
+1. **Does the eval dataset resemble actual production traffic rather than convenient examples created by developers?**
+
+2. **Which rare failures have disproportionate business, safety, or compliance impact and therefore deserve explicit test cases?**
+
+3. **When a production defect is fixed, have I added that case—or its failure pattern—to the regression suite?**
+
+---
+
+## 5. Real-life example
+
+A Claude-based IT help-desk agent routes tickets into `ACCESS`, `HARDWARE`, `SOFTWARE`, or `OTHER`.
+
+Its initial test set contains 500 straightforward tickets such as:
+
+> “My monitor does not turn on.”
+
+Accuracy reaches 98%.
+
+After launch, misrouting is much worse than expected. Real users write things like:
+
+> “Since yesterday I can’t get into SAP. I changed my password this morning because Teams also stopped working, but Teams is fine now.”
+
+The ticket contains several symptoms, historical information, and one unresolved intent.
+
+The team rebuilds the eval set from anonymized production patterns and adds specific difficult subsets: implicit requests, multiple problems, emotional wording, irrelevant details, and ambiguous intent.
+
+Anthropic’s ticket-routing guidance specifically calls out implicit requests, emotion distracting from underlying intent, and multiple concurrent issues as important edge cases for classification systems. ([Claude Platform][2])
+
+The original model was not necessarily bad. **The original test was unrealistic.**
+
+---
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A company evaluates a Claude-based expense-policy assistant using 1,000 manually created questions.
+
+The assistant scores 96%. After production launch, employees frequently receive incorrect answers when:
+
+* requests contain several expenses in one message;
+* policy information is missing;
+* employees phrase questions indirectly.
+
+The engineering team proposes changing the system prompt immediately.
+
+What should the architect do **first**?
+
+**A.** Add more instructions to the system prompt covering the three observed failures.
+
+**B.** Replace the model with the largest available Claude model.
+
+**C.** Add representative production-like and edge cases covering these failure patterns to the evaluation suite, establish the current baseline, and then compare fixes against it.
+
+**D.** Increase the evaluation set from 1,000 to 10,000 by generating more questions similar to the existing ones.
+
+---
+
+## 7. Spot the clue
+
+The key contradiction is:
+
+> **“96% evaluation score” but “frequent production failures.”**
+
+That strongly suggests an **evaluation-distribution problem** before it proves a prompting or model-capability problem.
+
+---
+
+## 8. Answer reasoning
+
+**Correct answer: C.**
+
+Anthropic recommends task-specific evaluations that mirror real-world distributions and explicitly include relevant edge cases. ([Claude Platform][1])
+
+The observed failures should first become measurable test cases. Only then can you determine whether a prompt change, better examples, retrieval improvement, model change, or workflow redesign actually fixes the issue without harming other cases.
+
+**Why A is tempting but weaker:** those prompt changes may indeed be useful, but without putting the failures into the eval suite first, you have no durable way to prove the fix worked or detect whether a future change breaks it again.
+
+**Why D is also insufficient:** increasing dataset volume improves confidence only if the added cases increase relevant coverage. Ten thousand versions of the same easy questions can create a more precise measurement of the wrong workload.
+
+**What could change the decision?** If the existing evaluation set already contained these production patterns in approximately correct proportions and the failures were reproduced there, the next step could legitimately be prompt, retrieval, model, or workflow optimisation.
+
+---
+
+## 9. One-line architect rule
+
+> **An eval score is meaningful only when the test distribution resembles the workload—and every important production failure becomes a future regression test.**
+
+## 10. Source basis
+
+* Official Anthropic **Define success criteria and build evaluations** guidance: real-world task distribution, held-out testing, edge cases, and scalable evaluation design. ([Claude Platform][1])
+* Official Anthropic **Ticket routing** guidance: production edge cases including implicit intent, distracting emotion, and multiple simultaneous issues. ([Claude Platform][2])
+* Exam scenario is **practice-derived**, not an authentic certification question.
+
+[1]: https://platform.claude.com/docs/en/test-and-evaluate/develop-tests?utm_source=chatgpt.com "Define success criteria and build evaluations - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/about-claude/use-case-guides/ticket-routing?utm_source=chatgpt.com "Ticket routing - Claude Platform Docs"
+
+
 ## Sep 15, 2026
 
-# Week 9, Session 42 — Choosing the Right Evaluator: Code, LLM, or Human
+# Choosing the Right Evaluator: Code, LLM, or Human
 
 ## 1. Level
 
