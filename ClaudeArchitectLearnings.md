@@ -1,5 +1,132 @@
 # Some learnings for Claude Architect 
 
+## Sep 18, 2026
+
+# Build the Eval Stack, Then Diagnose the Failure
+
+## 1. Level
+
+**Foundation — Week 9, Session 45**
+
+This week’s evaluation lessons form one architecture:
+
+**Success criteria → representative cases → appropriate graders → outcome verification → trajectory diagnosis**
+
+The important judgment is not simply whether an eval exists. It is whether each layer measures the thing you actually care about. Anthropic’s current guidance starts with measurable, multidimensional success criteria; recommends test sets that reflect real task distributions and edge cases; and advises using the fastest, most reliable grader appropriate to each criterion. ([Claude Platform][1])
+
+For agents, there is one additional distinction: **outcome versus trajectory**. Anthropic recommends verifying the resulting state wherever possible, while retaining traces to enforce genuine process constraints and diagnose failures. ([Anthropic][2])
+
+---
+
+## 2. Integrated scenario
+
+A company builds a Claude-based expense agent. It can answer policy questions, inspect receipts, classify expenses, and submit approved claims.
+
+Management defines success as “employees are happy with the agent.” Developers test 100 straightforward claims, manually inspect responses, and achieve apparently good results.
+
+Production failures then appear:
+
+* claims containing several expenses are misclassified;
+* missing receipts sometimes produce confident answers;
+* the agent occasionally submits a correctly formatted claim that exceeds the employee’s allowance;
+* explanations sometimes cite the wrong policy section;
+* valid claims occasionally take several unnecessary tool calls before submission.
+
+A better evaluation architecture separates these concerns.
+
+**Success criteria:** classification accuracy, grounded explanations, correct submission state, zero unauthorized submissions, latency/cost limits.
+
+**Dataset:** normal production patterns plus multi-expense claims, missing evidence, ambiguous categories, boundary amounts, and previously observed failures.
+
+**Graders:** code checks amounts, categories, authorization state, and backend submission results; rubric-based model graders assess explanation quality and policy groundedness; human reviewers periodically calibrate nuanced grading.
+
+**Agent evaluation:** verify that the right claim actually exists in the backend. Do not require one exact tool-call sequence unless the sequence itself is mandatory—for example, authorization must occur before financial submission.
+
+The trajectory remains valuable when a case fails: it can reveal bad retrieval, poor tool selection, excessive looping, or a grader that rejected a valid alternative path.
+
+---
+
+# 3. Friday checkpoint
+
+These questions are **practice-derived**, not authentic Anthropic certification questions.
+
+### Question 1
+
+The expense agent scores 97% on its offline test set but performs substantially worse in production. Investigation shows the test set contains almost entirely single-expense, complete-document cases.
+
+What should happen **first**?
+
+**A.** Rewrite the system prompt.
+**B.** Switch to the largest Claude model.
+**C.** Rebuild the evaluation set to represent production distributions and observed failure modes, then establish a new baseline.
+**D.** Add an LLM grader.
+
+**Answer: C**
+
+### Spot the clue
+
+The discrepancy is between **offline score and production behaviour**. That points first to **evaluation fidelity**, not necessarily model capability.
+
+Anthropic’s platform guidance explicitly recommends task-specific evals that mirror the real-world distribution and include relevant edge cases. ([Claude Platform][1])
+
+---
+
+### Question 2 — Select TWO
+
+Which TWO evaluation mechanisms best fit the following requirements?
+
+1. Confirm that the reimbursement entered into the finance system is exactly ₹18,450.
+2. Judge whether Claude’s explanation clearly communicates why one expense was rejected.
+
+**A.** Exact/backend-state verification for requirement 1
+**B.** Rubric-based model grading for requirement 1
+**C.** Rubric-based model grading for requirement 2
+**D.** Exact string matching for requirement 2
+
+**Answers: A and C**
+
+Deterministic facts should use deterministic verification where possible. Nuanced communication quality needs semantic judgment against a clear rubric. Anthropic recommends code-based grading for objective conditions and model-based grading for complex judgments, with reliability testing before scaling the latter. ([Claude Platform][1])
+
+---
+
+### Question 3
+
+The agent successfully submits a valid reimbursement but makes seven unnecessary database searches first.
+
+Should the evaluation fail?
+
+**A.** Always—any unexpected trajectory is incorrect.
+**B.** Never—only the final result matters.
+**C.** Only if the extra calls violate an explicit requirement such as cost, latency, privacy, or tool-use policy.
+**D.** Only if Claude cannot explain why it made the searches.
+
+**Answer: C**
+
+### Spot the clue
+
+The final outcome is correct; the question is whether the **path itself violates a requirement**.
+
+Anthropic’s agent-evaluation guidance distinguishes outcome graders from transcript or trajectory graders. Tool usage, token consumption, turn count, and forbidden behaviour can legitimately be evaluated when they matter, but forcing one arbitrary “correct” path can reject valid solutions. ([Anthropic][2])
+
+The strongest distractor is **B**: outcome verification is usually primary, but process constraints still matter when they affect security, compliance, cost, latency, or user experience.
+
+---
+
+## 4. One-line architect rule
+
+> **A trustworthy eval stack measures the real workload, uses the simplest reliable grader for each requirement, verifies outcomes, and inspects trajectories only where the path matters or diagnosis is needed.**
+
+## 5. Source basis
+
+* Official **Claude Platform evaluation documentation**, current as checked September 18, 2026: success criteria, representative datasets, edge cases, and grader selection. ([Claude Platform][1])
+* Anthropic Engineering, **“Demystifying evals for AI agents”**, January 2026: outcome, transcript, trajectory, and mixed-grader evaluation. ([Anthropic][2])
+* Anthropic Applied AI **agent-evals session**, July 14, 2026: production failures as eval inputs and end-to-end agent evaluation. ([Anthropic][3])
+
+[1]: https://platform.claude.com/docs/en/test-and-evaluate/develop-tests?utm_source=chatgpt.com "Define success criteria and build evaluations - Claude Platform Docs"
+[2]: https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents?utm_source=chatgpt.com "Demystifying evals for AI agents \ Anthropic"
+[3]: https://www.anthropic.com/webinars/evals-for-ai-agents-how-product-builders-get-the-most-out-of-every-new-model?utm_source=chatgpt.com "Evals for AI Agents: How Product Builders Get the Most Out of Every New Model | Webinars \ Anthropic"
+
+
 ## Sep 16, 2026
 
 # Eval Dataset Design: Test the Real Workload, Not the Easy Cases
