@@ -1,5 +1,125 @@
 # Some learnings for Claude Architect 
 
+## Sep 21, 2026
+
+# Human Oversight: Gate Consequential Actions, Not Every Agent Step
+
+## 1. Level
+
+**Foundation — Week 10, Session 46**
+
+## 2. Today’s concept
+
+Last week focused on **evaluating whether an agent behaves correctly**. Week 10 moves to what happens when correct behaviour cannot be guaranteed: **where should a human remain in control?**
+
+A weak design puts a human approval dialog in front of every action. This appears safe, but frequent approvals create **approval fatigue**. Anthropic reported in May 2026 that Claude Code users approved roughly **93% of permission prompts**; as prompts accumulated, users paid less attention to individual decisions. Anthropic subsequently reduced unnecessary prompts by strengthening environmental containment rather than depending solely on humans to inspect every action. ([Anthropic][1])
+
+The better architectural question is not:
+
+> **“Should this system have human-in-the-loop?”**
+
+It is:
+
+> **“Which decisions require human authority, and which risks should be prevented by deterministic system boundaries instead?”**
+
+Human review is strongest where judgment is genuinely required: ambiguous intent, material financial commitment, legal or reputational consequences, irreversible operations, unusual exceptions, or decisions requiring accountability. It is weaker as a substitute for basic access control. An agent should not need a human repeatedly saying “don’t read payroll data” if its credentials can simply make payroll data inaccessible.
+
+This produces two complementary controls: **approval gates limit autonomy at meaningful decision points; containment limits what the agent can do even if the human or model makes a mistake**. Anthropic describes this distinction explicitly: supervision controls behaviour, while sandboxes, filesystem boundaries, network controls, and scoped permissions constrain capability and blast radius. ([Anthropic][1])
+
+## 3. Why an architect cares
+
+Excessive autonomy can create financial, operational, privacy, or compliance damage. Excessive approval destroys the productivity benefit of an agent and can paradoxically weaken safety because users begin approving mechanically.
+
+The architecture therefore needs **risk-based autonomy**: automate routine reversible work inside hard boundaries, and escalate decisions where consequences or uncertainty justify human judgment. Anthropic’s trustworthy-agent framework similarly argues that humans should retain control particularly before high-stakes decisions, while routine trusted operations can receive greater autonomy. ([Anthropic][2])
+
+## 4. Architect’s lens
+
+1. **What is the consequence if this action is wrong—informational, reversible, costly, irreversible, or regulated?**
+
+2. **Can deterministic permissions or containment eliminate the risk instead of repeatedly asking a human to judge it?**
+
+3. **Does the reviewer actually have enough expertise and context to make the approval meaningful?**
+
+## 5. Real-life example
+
+An HR agent prepares employee offboarding.
+
+It can gather account inventories, draft manager communications, identify equipment, and generate an offboarding checklist without approval.
+
+But three actions are separated:
+
+* disabling the employee’s identity account;
+* deleting cloud resources owned by the employee;
+* sending the final termination notification.
+
+The first two could disrupt business systems; the third has legal and human consequences.
+
+The architecture therefore lets Claude **prepare** the actions but requires authorized humans to approve consequential execution. At the same time, Claude receives only the permissions necessary for the workflow—for example, it cannot access compensation records merely because an approver might reject misuse later.
+
+Human approval handles **judgment and accountability**. Least privilege handles **capability**.
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A company deploys a Claude-based infrastructure agent.
+
+It can:
+
+* inspect monitoring data;
+* diagnose incidents;
+* restart stateless development services;
+* modify production firewall rules.
+
+Initially, every tool call requires human approval. Engineers now approve requests almost automatically because hundreds appear each day.
+
+Which redesign is the **best fit**?
+
+**A.** Remove approvals entirely because engineers are already approving almost everything.
+
+**B.** Keep approval for every action but add stronger wording to the confirmation dialog.
+
+**C.** Allow routine low-risk operations within tightly scoped permissions, but require explicit approval for consequential actions such as production firewall changes.
+
+**D.** Ask Claude itself whether each action is dangerous and bypass human approval whenever Claude says it is safe.
+
+## 7. Spot the clue
+
+The decisive constraint is:
+
+> **“Engineers now approve requests almost automatically.”**
+
+The existing control is losing effectiveness through **approval fatigue**. The answer must reduce unnecessary approvals **without granting unlimited autonomy**.
+
+## 8. Answer reasoning
+
+**Correct answer: C.**
+
+Anthropic’s recent containment guidance reports that per-action supervision can become unreliable when users face too many permission prompts. Its response has been to combine reduced approval friction with stronger environmental boundaries such as sandboxing, filesystem limits, egress controls, and scoped permissions. ([Anthropic][1])
+
+Routine development-service restarts are relatively reversible and can be bounded—for example, by restricting the agent to named development resources. Production firewall modification has a much larger blast radius and therefore deserves stronger authorization and, depending on organisational policy, explicit human approval.
+
+**Why B is tempting but weaker:** clearer dialogs help when reviewers lack information, but they do not fix the underlying problem when the number of decisions itself overwhelms attention. A control that humans routinely approve without consideration is not providing meaningful oversight.
+
+**What could change the decision?** If even a “routine” restart could trigger safety-critical consequences—such as stopping a medical or industrial system—it should move behind stronger approval. Conversely, if production changes are fully constrained by tested policy-as-code, narrow permissions, automated rollback, and independent deployment controls, some organisations may safely automate more of the workflow.
+
+One further rule matters: a human approval gate is useful only when the reviewer can understand the decision. Anthropic notes that developers can reasonably assess many shell operations, while non-technical knowledge workers should not be expected to judge obscure commands; in those cases, stronger always-on boundaries are preferable. ([Anthropic][1])
+
+## 9. One-line architect rule
+
+> **Use humans for consequential judgment; use deterministic boundaries to prevent capabilities the agent should never have.**
+
+## 10. Source basis
+
+* Official **Anthropic Engineering** guidance, *How we contain Claude across products* (May 25, 2026): approval fatigue, containment, blast-radius reduction, and matching oversight to user expertise. ([Anthropic][1])
+* Official **Anthropic trustworthy-agent framework**: balancing autonomy with human control around high-stakes actions. ([Anthropic][2])
+* Exam scenario is **practice-derived**, not an authentic certification question.
+
+[1]: https://www.anthropic.com/engineering/how-we-contain-claude "How we contain Claude across products \ Anthropic"
+[2]: https://www.anthropic.com/news/our-framework-for-developing-safe-and-trustworthy-agents "Our framework for developing safe and trustworthy agents \ Anthropic"
+
+
+
 ## Sep 18, 2026
 
 # Build the Eval Stack, Then Diagnose the Failure
