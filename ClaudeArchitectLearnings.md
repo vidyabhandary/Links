@@ -1,5 +1,132 @@
 # Some learnings for Claude Architect 
 
+## Sep 22, 2026
+
+# Week 10, Session 47 — Abstention and Escalation: Design a Safe “I Don’t Know” Path
+
+## 1. Level
+
+**Foundation — Week 10, Session 47**
+
+## 2. Today’s concept
+
+Yesterday’s lesson asked **where humans should retain authority**. Today’s question is earlier in the decision chain:
+
+> **How should Claude behave when it does not have enough evidence to act or answer reliably?**
+
+A production system needs an explicit **abstention path**. Instead of forcing Claude to produce an answer for every request, allow outcomes such as **insufficient evidence**, **clarification required**, **tool failure**, **conflicting sources**, or **human review required**. Anthropic’s agent-evaluation guidance recommends giving model graders an explicit escape such as `Unknown` when available information is insufficient, rather than forcing a potentially fabricated judgment. The same principle is valuable in application architecture. ([Anthropic][1])
+
+Abstention is not simply “Claude feels uncertain.” Self-reported confidence is not a sufficient production control. Prefer **observable triggers**: mandatory source missing, required field unavailable, authoritative documents disagree, retrieval produced no evidence, a critical tool failed, or the requested action crosses a defined policy boundary.
+
+The architecture therefore becomes:
+
+**answer/action when sufficient evidence exists → recover or clarify when possible → escalate or abstain when the remaining uncertainty matters.**
+
+This is different from yesterday’s approval gate. An approval gate says, **“Claude knows what action it proposes, but a human must authorize it.”** Abstention says, **“the system does not yet possess enough reliable information to justify the decision.”**
+
+---
+
+## 3. Why an architect cares
+
+Many serious LLM failures are not caused by completely incapable models; they occur because the workflow **forces a decision despite missing evidence**.
+
+Consider RAG. If retrieval finds no policy covering an employee’s unusual expense, telling Claude to “answer the question” encourages it to interpolate from unrelated policies. A safer design makes missing evidence a legitimate result.
+
+Anthropic’s current prompting guidance similarly recommends grounding Claude before answering—for example, instructing coding agents not to speculate about files they have not inspected and to investigate relevant material first. ([Claude Platform Docs][2])
+
+The business trade-off is important: excessive abstention creates poor automation, while insufficient abstention creates unreliable automation. The goal is **selective failure**, not universal caution.
+
+---
+
+## 4. Architect’s lens
+
+1. **What objective evidence must exist before Claude is allowed to answer or act?**
+
+2. **Can the system recover the missing information automatically, or must it ask, abstain, or escalate?**
+
+3. **What is the consequence of a false answer compared with the cost of refusing or escalating?**
+
+---
+
+## 5. Real-life example
+
+A contract assistant answers questions about customer termination rights.
+
+For most contracts, Claude retrieves the relevant clause and answers with supporting evidence. One contract, however, references an amendment that is absent from the document repository.
+
+The unsafe workflow tells Claude to infer the likely termination period from the original agreement.
+
+The safer workflow detects that the controlling amendment is unavailable and returns:
+
+**Status:** insufficient evidence
+**Missing:** Amendment 3 referenced by Section 14
+**Action:** obtain amendment before determining termination rights
+
+The application can automatically search another repository first. If that fails, it routes the case to legal operations.
+
+Claude has not “failed.” It has correctly identified that **the evidence required for a defensible decision is missing**.
+
+---
+
+## 6. Exam-style question — Select TWO
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A Claude-based procurement assistant recommends whether suppliers satisfy a mandatory cybersecurity requirement.
+
+Policy states that approval requires a **current SOC 2 Type II report**. For one supplier, retrieval returns a security questionnaire and an expired SOC 2 report, but no current report.
+
+Which TWO actions form the best architecture?
+
+**A.** Ask Claude to infer compliance from the questionnaire because it contains similar controls.
+
+**B.** Treat absence of the required current evidence as an explicit insufficient-evidence state.
+
+**C.** Automatically approve when Claude reports greater than 90% confidence.
+
+**D.** Attempt permitted retrieval of the missing report and escalate if it remains unavailable.
+
+---
+
+## 7. Spot the clue
+
+The controlling constraint is:
+
+> **Approval requires a current SOC 2 Type II report.**
+
+The system is not missing general information; it is missing a **required piece of authoritative evidence**.
+
+---
+
+## 8. Answer reasoning
+
+**Correct answers: B and D.**
+
+The workflow should encode the mandatory evidence requirement directly. If the document is absent, Claude should not substitute approximate evidence simply because it appears persuasive.
+
+Before escalating, however, the system can attempt recovery: search another approved repository, request the missing artifact, or invoke another appropriate tool. Anthropic’s current prompting guidance recommends investigation before making claims when the required information can be inspected. ([Claude Platform Docs][2])
+
+**Why C is tempting but weaker:** a numerical confidence score seems easy to convert into a routing threshold. But the decisive requirement here is deterministic: **the required document exists and is current, or it does not**. A model saying “93% confident” cannot replace missing evidence.
+
+This principle also improves evaluation. Anthropic recommends allowing an `Unknown` outcome when information is insufficient so that evaluators are not rewarded for fabricating judgments. ([Anthropic][1])
+
+**What could change the decision?** If organisational policy explicitly permitted alternative evidence—such as an independently verified certification—the workflow could evaluate that substitute. The key is that the substitution rule comes from policy, not from Claude improvising around a missing requirement.
+
+---
+
+## 9. One-line architect rule
+
+> **When required evidence is missing, design recovery, abstention, or escalation—not confident improvisation.**
+
+## 10. Source basis
+
+* Official Anthropic **Prompting best practices**: investigate relevant evidence before making claims and avoid speculation about uninspected material. ([Claude Platform Docs][2])
+* Anthropic Engineering, **Demystifying evals for AI agents**: provide an `Unknown` path when information is insufficient rather than forcing a judgment. ([Anthropic][1])
+* Exam scenario is **practice-derived**, not an authentic certification question.
+
+[1]: https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents?utm_source=chatgpt.com "Demystifying evals for AI agents \ Anthropic"
+[2]: https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/prompt-templates-and-variables?utm_source=chatgpt.com "Prompting best practices - Claude Platform Docs"
+
 ## Sep 21, 2026
 
 # Human Oversight: Gate Consequential Actions, Not Every Agent Step
