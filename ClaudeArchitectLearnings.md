@@ -1,8 +1,116 @@
 # Some learnings for Claude Architect 
 
+## Sep 23, 2026
+
+# Retry, Repair, or Escalate: Treat Failures by Type
+
+## 1. Level
+
+**Foundation — Week 10, Session 48**
+
+## 2. Today’s concept
+
+Yesterday you learned that **missing evidence should produce recovery, abstention, or escalation rather than invention**. Today extends that reliability principle to system failures: when something goes wrong, **do not treat every failure as retriable**.
+
+A useful failure taxonomy is:
+
+| Failure                            | Typical response                                               |
+| ---------------------------------- | -------------------------------------------------------------- |
+| Temporary capacity/network failure | **Retry** with bounded backoff                                 |
+| Invalid request/configuration      | **Repair** the request or configuration                        |
+| Tool returns a meaningful failure  | **Expose the failure to Claude** so it can choose another path |
+| Side-effect outcome is uncertain   | **Verify state before retrying**                               |
+| Repeated or unrecoverable failure  | **Degrade, abstain, or escalate**                              |
+
+Anthropic’s current API documentation distinguishes these cases. For example, a `400 invalid_request_error` means the request itself is invalid; repeating it unchanged will not help. A `500 api_error` should be retried with exponential backoff, while a `529 overloaded_error` represents temporary overload. A `429 rate_limit_error` needs more care because some 429s are temporary rate limits, while a spending-cap 429 can continue failing until access resumes. ([Claude Platform Docs][1])
+
+Tool failures are another layer. When a client-side tool fails, Anthropic’s tool-use protocol allows the application to return a `tool_result` with `is_error: true`. Claude can then reason over the failure—for example, trying a different query or explaining that the requested operation could not be completed—instead of the application pretending the tool succeeded. ([Claude Platform Docs][2])
+
+The most dangerous case is an **uncertain side effect**. If a payment tool times out after submission, “retry” may create a second payment. Before repeating a mutating operation, determine whether the first operation actually happened.
+
+## 3. Why an architect cares
+
+Reliability is not “retry everything three times.”
+
+Retries improve availability for transient failures, but uncontrolled retries can increase load, cost, latency, and duplicate side effects. Conversely, escalating every temporary API failure creates unnecessary operational work.
+
+An architect should therefore decide failure behaviour **per operation**. Read-only search can often be retried cheaply. Creating an order, issuing a refund, deleting a record, or sending an email requires stronger protection because repeating the call may change business state twice.
+
+## 4. Architect’s lens
+
+1. **Is the failure transient, deterministic, or caused by missing/invalid information?**
+
+2. **Is the attempted operation read-only, or could repeating it create another side effect?**
+
+3. **Can I verify the external system’s state before retrying, falling back, or escalating?**
+
+## 5. Real-life example
+
+A Claude-based claims agent invokes `submit_claim`.
+
+The claims service accepts the request but the network connection fails before the agent receives the response. Claude sees “timeout.”
+
+The unsafe orchestration immediately calls `submit_claim` again.
+
+The safer architecture treats the result as **unknown**, not failed. It first queries the claims platform using the transaction or correlation identifier. If the claim exists, processing continues using the existing claim ID. If it definitely does not exist, the system may retry within a bounded policy. If the state cannot be established, it stops automatic execution and escalates.
+
+By contrast, if a read-only `get_policy_document` call returns a temporary server error, a bounded retry is usually appropriate.
+
+The difference is **the consequence of repetition**, not merely the error message.
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A purchasing agent calls `create_purchase_order`. The supplier API times out after receiving the request, so the application cannot determine whether the purchase order was created.
+
+What is the **best next action**?
+
+**A.** Immediately repeat `create_purchase_order` until the API returns success.
+
+**B.** Ask Claude whether it believes the purchase order probably succeeded.
+
+**C.** Check the supplier system using a stable transaction/reference identifier; retry only if the operation is known not to have completed, otherwise reuse the existing result or escalate if state remains uncertain.
+
+**D.** Tell the user that the purchase failed because the API returned a timeout.
+
+## 7. Spot the clue
+
+The decisive phrase is:
+
+> **“cannot determine whether the purchase order was created.”**
+
+A timeout describes what the caller observed. It does **not** prove that the remote operation failed.
+
+## 8. Answer reasoning
+
+**Correct answer: C.**
+
+For operations with side effects, the architecture must distinguish **failure to receive a response** from **failure of the business operation itself**. Verification prevents a transport problem from becoming a duplicate purchase.
+
+**Why A is tempting but weaker:** automatic retry is exactly the right response to many transient API failures. Anthropic’s current API guidance, for example, recommends retrying internal `500` errors with exponential backoff and identifies `529` as temporary overload. ([Claude Platform Docs][1]) But that retry policy does not mean every downstream business operation can safely be executed again.
+
+When a Claude-controlled tool itself fails, the application can return the error using `is_error: true`, allowing Claude to decide whether another tool, revised parameters, or a user-visible failure path is appropriate. ([Claude Platform Docs][2]) Claude should not, however, decide whether duplicate business execution is acceptable purely through probabilistic reasoning; that belongs in deterministic orchestration and business controls.
+
+**What could change the decision?** If `create_purchase_order` is guaranteed idempotent for a supplied request key, repeating the same request may be safe. If the operation is read-only, the risk of retrying is lower and bounded automatic retries may be the simplest design.
+
+## 9. One-line architect rule
+
+> **Retry transient computation; repair deterministic errors; verify uncertain side effects before repeating them.**
+
+## 10. Source basis
+
+* Official **Claude API error documentation**, checked **September 23, 2026**: HTTP error classes, exponential-backoff guidance, overload, rate-limit nuances, timeouts, and request IDs. ([Claude Platform Docs][1])
+* Official Anthropic **tool-use implementation documentation**: returning failed tool execution through `tool_result` with `is_error: true`. ([Claude Platform Docs][2])
+* Exam scenario is **practice-derived**, not an authentic certification question.
+
+[1]: https://docs.anthropic.com/es/api/errors?utm_source=chatgpt.com "Errores de la Claude API - Claude Platform Docs"
+[2]: https://docs.anthropic.com/ko/docs/agents-and-tools/tool-use/implement-tool-use?utm_source=chatgpt.com "도구 사용 구현 방법 - Anthropic"
+
+
 ## Sep 22, 2026
 
-# Week 10, Session 47 — Abstention and Escalation: Design a Safe “I Don’t Know” Path
+# Abstention and Escalation: Design a Safe “I Don’t Know” Path
 
 ## 1. Level
 
