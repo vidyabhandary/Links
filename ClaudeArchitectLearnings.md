@@ -1,5 +1,126 @@
 # Some learnings for Claude Architect 
 
+## Sep 24, 2026
+# Graceful Degradation: Preserve the Safe Core When Dependencies Fail
+
+## 1. Level
+
+**Foundation — Week 10, Session 49**
+
+## 2. Today’s concept
+
+Yesterday separated **retry, repair, verification, and escalation**. Today asks what the application should do when recovery fails but **part of the service can still operate safely**.
+
+This is **graceful degradation**. Instead of treating the system as either fully available or completely unavailable, identify which capabilities depend on the failed component and disable only those capabilities. The critical requirement is that degraded mode must never pretend to provide guarantees that are no longer available.
+
+| Situation                                | Appropriate response |
+| ---------------------------------------- | -------------------- |
+| Temporary failure likely to recover      | Retry                |
+| Equivalent capability is available       | Fallback             |
+| Some useful functions remain safe        | Degrade              |
+| Required evidence/control is unavailable | Abstain or escalate  |
+
+For example, if a live account-balance API is unavailable, a banking assistant might still explain *how* a transfer works from static documentation. It must not estimate the customer’s available balance or execute a transfer whose controls depend on that unavailable API.
+
+This distinction also matters with Claude itself. Anthropic now provides server-side model fallback for certain **classifier refusals**, but the feature does **not** automatically handle rate limits, overload, or server errors; those are returned to the application and require separate reliability handling. ([Claude Platform][1]) A fallback is therefore not a universal availability mechanism.
+
+## 3. Why an architect cares
+
+A monolithic failure policy creates two bad extremes.
+
+**Fail everything:** one unavailable dependency can unnecessarily disable the whole customer journey.
+
+**Continue everything:** the agent may operate without data or controls that made its actions trustworthy.
+
+The architect needs to know which capabilities are **essential invariants** and which are optional enhancements. Losing recommendations may justify degraded service; losing authorization should normally stop the transaction.
+
+## 4. Architect’s lens
+
+1. **Which capability actually depends on the failed component, and which capabilities remain independently trustworthy?**
+
+2. **Does degraded operation weaken any security, authorization, evidence, freshness, or correctness requirement?**
+
+3. **Can the user clearly distinguish live/verified information from functionality that is temporarily unavailable?**
+
+## 5. Real-life example
+
+A learning platform uses Claude to help employees choose training.
+
+Claude can search the course catalogue, read learning policies, inspect an employee’s completed courses, and enroll them.
+
+The enrollment service becomes unavailable.
+
+The poor design either shuts down the assistant entirely or lets Claude tell users they have been enrolled despite the failed transaction.
+
+The degraded design keeps useful capabilities available: Claude can explain course content, compare alternatives, check prerequisites, and recommend courses. But **enrollment is explicitly unavailable**.
+
+If the catalogue search tool itself fails, the application returns a meaningful tool error rather than fabricated results. Anthropic’s tool protocol supports sending a failed client-tool result with `is_error: true`, allowing Claude to adapt or explain the limitation. ([Claude Platform][2])
+
+The system preserves useful service without weakening transactional truth.
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A Claude-based customer-support agent can:
+
+* answer product questions from approved documentation;
+* retrieve current order status;
+* change delivery addresses after verifying order eligibility.
+
+The order-management API becomes unavailable after retries are exhausted. The documentation repository remains healthy.
+
+What is the **best architecture during the outage**?
+
+**A.** Disable the entire assistant until order management recovers.
+
+**B.** Continue answering documentation-based questions, clearly disable live order status and address changes, and avoid inferring order-specific information.
+
+**C.** Let Claude estimate order status using typical delivery times and continue address changes when confidence is high.
+
+**D.** Route all order-management calls to a different Claude model.
+
+## 7. Spot the clue
+
+The important constraint is:
+
+> **The order-management API is unavailable, but the documentation repository remains healthy.**
+
+Only capabilities requiring live order state have lost their trust basis.
+
+## 8. Answer reasoning
+
+**Correct answer: B.**
+
+The system can continue performing tasks whose required dependencies remain available while disabling operations whose correctness depends on unavailable live state.
+
+This is different from yesterday’s retry logic. Once bounded retries have failed, continuing to repeat requests indefinitely increases latency and load without restoring service. Anthropic’s SDKs already perform bounded automatic retries for several transient failure types—including connection errors, rate limits, and 5xx responses—using exponential backoff by default. ([Claude Platform][3])
+
+**Why A is tempting but weaker:** shutting everything down is safe, but unnecessarily sacrifices availability. Product-policy explanations do not depend on the failed order-management service.
+
+**Why C is dangerous:** estimation quietly changes the semantic contract from **current verified state** to **Claude’s inference**. No confidence score restores the missing authoritative source.
+
+**What could change the decision?** If product documentation also required live entitlement or region-specific policy data from the failed service, even apparently static support answers might need to stop. Conversely, if a replicated read-only order store remained trustworthy, order-status lookup could stay available while mutations remained disabled.
+
+One current Anthropic nuance reinforces the broader lesson: server-side model fallback is presently designed for supported classifier refusals, not general overload or API errors. Availability architecture still needs explicit handling for infrastructure and dependency failures. ([Claude Platform][1])
+
+## 9. One-line architect rule
+
+> **Degrade optional capability when dependencies fail; never degrade the control or evidence that makes an action trustworthy.**
+
+## 10. Source basis
+
+* Official **Claude API errors** documentation, current **September 24, 2026**: transient failures, SDK retries, backoff, overload and timeout behaviour. ([Claude Platform][3])
+* Official **Claude tool-call handling** documentation: communicating execution failures through `tool_result` and `is_error`. ([Claude Platform][2])
+* Official **Anthropic refusals and fallback** documentation: current server-side fallback scope and limitations. ([Claude Platform][1])
+
+[1]: https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback?utm_source=chatgpt.com "Refusals and fallback - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls?utm_source=chatgpt.com "Handle tool calls - Claude Platform Docs"
+[3]: https://platform.claude.com/docs/en/api/errors?utm_source=chatgpt.com "Claude API errors - Claude Platform Docs"
+
+
+
+
 ## Sep 23, 2026
 
 # Retry, Repair, or Escalate: Treat Failures by Type
