@@ -1,5 +1,154 @@
 # Some learnings for Claude Architect 
 
+## Sep 25, 2026
+
+# Week 10, Session 50 — Friday Consolidation: Reliability Means Choosing the Right Failure Path
+
+## 1. Level
+
+**Foundation — Week 10, Session 50**
+
+This week’s theme was not “make Claude safer” in the abstract. It was more precise:
+
+> **Different failure conditions require different architectural responses.**
+
+A useful decision sequence is:
+
+**Can the system proceed safely? → Can it recover automatically? → Does the action require human authority? → Can unaffected capability remain available?**
+
+That gives four distinct patterns from this week:
+
+* **Human approval** when the action is consequential and requires accountable judgment.
+* **Abstention/escalation** when required evidence is missing.
+* **Retry/repair/verify** when execution fails.
+* **Graceful degradation** when only part of the system has lost a trustworthy dependency.
+
+The mistake to avoid is using one universal safety mechanism—such as “ask a human,” “retry three times,” or “return an error”—for every problem.
+
+---
+
+## 2. Integrated scenario
+
+A software-release agent uses Claude to:
+
+* inspect a pull request;
+* run tests;
+* deploy to staging;
+* verify change-ticket approval;
+* deploy to production;
+* check deployment health.
+
+Consider four failures.
+
+**Failure 1 — Approval is missing.**
+The code passes every test, but production deployment requires an approved change ticket.
+
+The agent should **stop before production deployment**. More reasoning cannot replace an organizational authorization requirement.
+
+**Failure 2 — The test service returns a temporary 500.**
+This is a candidate for **bounded retry with backoff**, because the operation is read-only/repeatable and the failure may be transient. Anthropic’s current API guidance similarly recommends exponential-backoff retries for transient server failures, and its SDKs automatically retry several transient error classes by default. ([Claude][1])
+
+**Failure 3 — Production deployment is submitted, but the connection times out.**
+Do **not** immediately deploy again. First inspect deployment state using the release identifier. The unknown fact is whether the remote action completed.
+
+**Failure 4 — The deployment system is down, but repository analysis and test execution still work.**
+The agent can continue reviewing code and preparing release evidence, but production deployment must remain unavailable.
+
+That is graceful degradation: preserve capabilities whose trust assumptions remain intact.
+
+---
+
+## 3. Architect’s lens
+
+1. **What exactly failed—evidence, authorization, execution, or dependency availability?**
+
+2. **Could repeating or continuing the operation create a larger side effect or bypass a required control?**
+
+3. **Which remaining capabilities are still independently trustworthy and useful?**
+
+---
+
+# 4. Friday checkpoint
+
+These questions are **practice-derived, not authentic Anthropic certification questions**.
+
+### Question 1
+
+A Claude agent prepares vendor payments. All invoice data is present and validated, but corporate policy requires treasury approval for transfers above ₹5 million.
+
+Claude determines with high confidence that the payment is legitimate.
+
+What should happen?
+
+**A.** Claude should approve because all evidence is complete.
+**B.** Retry the payment later.
+**C.** Require the specified treasury authorization before execution.
+**D.** Ask another Claude model to confirm the decision.
+
+**Answer: C**
+
+### Spot the clue
+
+The issue is not uncertainty. It is **authority**.
+
+No model confidence level replaces a business rule assigning approval responsibility to a human or external control.
+
+---
+
+### Question 2
+
+A document agent must answer using a signed contract amendment. Retrieval finds the original contract but the referenced amendment is unavailable.
+
+What is the best response?
+
+**A.** Infer the likely amendment from similar contracts.
+**B.** State that required evidence is unavailable and attempt retrieval/escalation.
+**C.** Use the original contract because it is authoritative.
+**D.** Ask Claude to provide a confidence score and answer above 90%.
+
+**Answer: B**
+
+### Spot the clue
+
+The missing information is not optional context; it is **controlling evidence**.
+
+This is an abstention/recovery problem, not a prompting problem.
+
+---
+
+### Question 3
+
+A client-side tool invoked by Claude fails because an upstream service is temporarily unavailable.
+
+Which design is strongest?
+
+**A.** Hide the error and let Claude assume success.
+**B.** Return the failure explicitly so Claude can adapt, while the application applies appropriate retry and policy logic.
+**C.** Re-run every tool indefinitely until one succeeds.
+**D.** End the entire user session.
+
+**Answer: B**
+
+Anthropic’s tool-use contract is explicit: Claude requests client-side tool execution, but **your application executes the operation and returns the result**. Tool failures can be sent back using an error result so Claude can recover or choose another path. ([Claude][2])
+
+The strongest distractor is **C** because retries are legitimate for transient failures. But retries must be bounded and appropriate to the operation; repeating a side-effecting tool can be dangerous.
+
+---
+
+## 5. One-line architect rule
+
+> **Classify the failure before choosing the control: authority → approval, missing evidence → abstain, transient execution failure → retry, uncertain side effect → verify, partial dependency loss → degrade safely.**
+
+## 6. Source basis
+
+* Official **Claude Platform API error and tool-use documentation**, checked **September 25, 2026**: retry behaviour, tool execution responsibilities, and explicit tool-error handling. ([Claude][1])
+* Official **Anthropic Engineering** guidance on agent containment and approval fatigue: use environmental boundaries and scoped capability rather than depending on humans to approve every low-level action. ([anthropic.com][3])
+
+[1]: https://platform.claude.com/docs/en/api/errors?utm_source=chatgpt.com "Claude API errors - Claude Platform Docs"
+[2]: https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works?utm_source=chatgpt.com "How tool use works - Claude Platform Docs"
+[3]: https://www.anthropic.com/engineering/how-we-contain-claude?utm_source=chatgpt.com "How we contain Claude across products \ Anthropic"
+
+
 ## Sep 24, 2026
 # Graceful Degradation: Preserve the Safe Core When Dependencies Fail
 
