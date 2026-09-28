@@ -1,3 +1,61 @@
+# Sep 28, 206
+
+---
+
+**1. Every corpus holds two kinds of fact, and retrieval can only work on one.**
+
+- *In the document* — what it says: the procedure, the clause, the torque value, the definition. This is similarity's job.
+- *About the document* — its standing in the world: in force or superseded, applicable to which entity, who may see it, valid between which dates, live or withdrawn. Never reliably recoverable from the text.
+- The test: **if an authority could change the fact without editing a single word of the document, it is a fact about it.** A revision is superseded by a decision, not by a rewrite.
+- Facts about a document are metadata — structured, deterministic, applied before similarity runs.
+
+**2. Presence is not addressability.** Being written in the document does not make a fact usable by retrieval. Two conditions must both hold:
+
+- *The query's own words must point at it.* "Torque sequence for the aft flange" shares almost no vocabulary with "Effective for serials 1200–1450", so the applicability line is near-invisible to that query. Same mechanism as a clause separated from its qualifier.
+- *The answer must be a passage to read, not a test to apply.* Embeddings rank by closeness. They do not evaluate booleans, ranges, dates or set membership — 1327 and 1237 are near-identical as tokens.
+- Corollary: pasting the constraint into every chunk does not fix it. The disqualified document is still retrieved, the check becomes the model's judgement, and the repeated boilerplate dilutes every embedding.
+
+**3. Passage to read → retrieval. Test to apply → structured field.** The sorting rule for any requirements list.
+
+- Tests to apply: status, permission, membership, range, date comparison, version.
+- Passages to read: procedures, definitions, clauses, explanations, values stated in context.
+
+**4. Currency is relative, never global.** "Latest" is a property of a document; "in force" is a relationship.
+
+- In force = **for this entity, for this task, on this date.** One document can be current for one customer, aircraft or jurisdiction and superseded for another.
+- Retaining superseded versions is usually a requirement, not technical debt: audit and investigation ask what was approved on the date of the event.
+- So "delete the old ones" is the wrong fix — it destroys the time dimension. Constrain per query instead.
+
+**5. Filter or rank? One question decides it.** Does violating the constraint make the answer *wrong or unsafe*, or merely *less good*?
+
+- Wrong or unsafe → **hard pre-filter, before similarity, fail closed.** Entitlements, currency, effectivity, withdrawal.
+- Less good → **ranking signal.** Preferences, source seniority, recency bias, house style.
+- Three enforcement points, in descending strength: pre-filter (never enters the pipeline) → post-filter (already read and logged — for entitlements that is the breach) → prompt instruction (probabilistic, never a control).
+- A hard filter converts a fuzzy judgement into permanent, invisible deletion. Ranking demotes and leaves the material reachable.
+
+**6. Every filter is a dependency you now own.** Determinism is not free safety.
+
+- A missing or wrong value excludes the document with **no error**. Silent and absolute.
+- Each field needs a source system, a freshness SLA, a missing-value alarm and an explicit empty-result path.
+- "Add a structured field for everything" is not caution — it is more ways to lose documents invisibly.
+- Engineering note: in graph-based vector indexes a very selective pre-filter can degrade recall. An implementation concern, not a reason to move a safety check downstream.
+
+**7. Two procedures to run on any architecture question.**
+
+*Locating the fault — the layer test:*
+
+- State the failure as "it returned X instead of Y because Z".
+- Find the stage that owns Z: ingestion → chunking → indexing → retrieval → reranking → context assembly → generation.
+- Label each option with the stage it acts on. An option acting on a different stage cannot fix the fault — that is the discriminating reason, read off the labels rather than invented.
+
+*Naming the residual risk — three questions:*
+
+- What does this remove, and who needed it?
+- What does this now depend on that did not exist before? Name the field, feed or team — not "latency" or "expense".
+- How would anyone find out it went wrong? If the answer is "they would not", that is the risk.
+
+**Canonical order:** entitlements → metadata → similarity → context expansion → rerank → generate. Deterministic before probabilistic, always.
+
 # Sep 2, 2026
 
 ## Late Interaction Retrieval 
