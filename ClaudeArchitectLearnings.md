@@ -1,8 +1,7 @@
 # Some learnings for Claude Architect 
 
 ## Sep 28, 2026
-
-# Week 11, Session 51 — Where Should the Rule Live? Prompt vs Guardrail vs Approval vs Eval
+Where Should the Rule Live? Prompt vs Guardrail vs Approval vs Eval
 
 ## 1. Level
 
