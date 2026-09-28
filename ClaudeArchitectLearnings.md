@@ -1,5 +1,126 @@
 # Some learnings for Claude Architect 
 
+## Sep 28, 2026
+
+# Week 11, Session 51 — Where Should the Rule Live? Prompt vs Guardrail vs Approval vs Eval
+
+## 1. Level
+
+**Foundation Consolidation — Week 11, Session 51**
+
+Weeks 9–10 covered evaluation, human oversight, abstention, retries, and graceful degradation. Week 11 now consolidates those ideas into **architecture-choice questions**.
+
+## 2. Today’s concept
+
+When an AI requirement appears, one of the most important architectural decisions is **where to enforce it**. Teams often put too much into the system prompt: “never issue refunds above ₹10,000,” “never access payroll,” “always request approval before deletion.” Prompts are valuable for steering Claude’s behaviour, but they are **probabilistic instructions**, not security or transaction boundaries.
+
+Use the layer whose failure characteristics match the requirement:
+
+| Mechanism | Best used for |
+|---|---|
+| **Prompt** | Behaviour, reasoning approach, tone, tool-selection guidance |
+| **Deterministic control** | Permissions, hard limits, validation, authorization, required business rules |
+| **Human approval** | Consequential decisions requiring judgment or accountability |
+| **Eval** | Measuring whether the system behaves as intended |
+
+Anthropic’s prompting guidance emphasizes clear and explicit instructions, particularly when telling Claude when to use tools. Tool definitions similarly describe what a tool does, when to use it, and its expected schema. :chatgpt-content-reference{index="0"} But these mechanisms help Claude **choose correctly**; they should not be confused with preventing an impermissible action.
+
+Anthropic makes the enforcement distinction particularly clear in its agent-containment work: human supervision attempts to influence what an agent **does**, while containment restricts what the agent is **able to do** through mechanisms such as sandboxes, filesystem boundaries, network controls, and scoped permissions. :chatgpt-content-reference{index="1"}
+
+A useful exam distinction follows: **an eval detects failure; a guardrail prevents or limits it.** An excellent test suite proving that Claude normally respects a ₹10,000 refund limit does not enforce that limit when the application processes the next real transaction.
+
+## 3. Why an architect cares
+
+Misplacing a requirement creates either unnecessary complexity or false safety.
+
+If marketing wants responses to sound concise and professional, hard-coding a deterministic sentence generator defeats the purpose of using Claude. A prompt is appropriate.
+
+If regulation says an employee may not view another employee’s medical record, relying on “do not reveal unauthorized records” in the prompt is too weak. Authorization must prevent those records from reaching the model or tool caller in the first place.
+
+Architecture judgment therefore means distinguishing **preference, invariant, accountable decision, and measurement**.
+
+## 4. Architect’s lens
+
+1. **If Claude ignored this instruction once, would the result merely be lower quality—or an unacceptable policy, security, or financial violation?**
+
+2. **Can the requirement be expressed deterministically in code, permissions, schema validation, or policy before the action executes?**
+
+3. **Does the decision genuinely require contextual human judgment, or am I using human approval because the technical boundary is poorly designed?**
+
+## 5. Real-life example
+
+A Claude-based procurement agent prepares software purchases.
+
+The organization has four requirements: explanations should be concise; purchases above ₹50,000 require procurement approval; employees may purchase only for their own cost centre; and the team wants to know whether Claude selects appropriate suppliers.
+
+The architecture assigns each requirement differently.
+
+Concise explanations belong in the **prompt**.
+
+Cost-centre authorization belongs in **deterministic identity and permission checks**.
+
+Purchases above ₹50,000 trigger **human approval** because policy assigns accountability to procurement.
+
+Supplier-selection quality belongs in an **evaluation suite** using representative purchasing scenarios.
+
+Putting all four rules into a system prompt would look simpler, but it would confuse behavioural guidance with enforcement and measurement.
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A Claude-based finance agent can create customer refunds.
+
+Requirements are:
+
+- refunds should include a polite explanation;
+- refunds above ₹20,000 are prohibited without manager authorization;
+- the architecture team must track whether Claude correctly identifies refund eligibility.
+
+A developer proposes putting all three requirements into Claude’s system prompt and periodically reviewing conversations.
+
+What is the **best architecture**?
+
+**A.** Put all three rules in the prompt because Claude can reason about them together.
+
+**B.** Prompt Claude for explanation style, enforce the ₹20,000 authorization rule outside the model, and evaluate refund-eligibility decisions with a representative test suite.
+
+**C.** Require a manager to approve every refund because human review provides the strongest control.
+
+**D.** Use an LLM grader before every refund and execute the transaction whenever the grader approves Claude’s reasoning.
+
+## 7. Spot the clue
+
+The requirements are fundamentally different:
+
+**“polite” is behavioural; “prohibited without authorization” is an invariant; “track whether Claude correctly identifies” is measurement.**
+
+That tells you they should not live in the same layer.
+
+## 8. Answer reasoning
+
+**Correct answer: B.**
+
+Claude should receive explicit behavioural instructions about how to communicate and reason. Anthropic recommends clear, direct prompting and sufficiently detailed tool descriptions so the model understands intended behaviour. :chatgpt-content-reference{index="2"}
+
+But a financial authorization threshold should be enforced deterministically. Even an excellent model can occasionally make an incorrect decision, and Anthropic’s containment guidance recommends limiting an agent’s capabilities rather than depending solely on probabilistic supervision. :chatgpt-content-reference{index="3"}
+
+Eligibility accuracy belongs in the eval layer. Anthropic’s agent-evaluation guidance describes evals as a way to expose behavioural changes and failures before they affect users; they are evidence about quality, not substitutes for runtime enforcement. :chatgpt-content-reference{index="4"}
+
+**Why C is tempting but weaker:** human approval would indeed prevent unauthorized refunds, but requiring it for *every* refund discards safe automation and risks approval fatigue. The approval should apply where policy or consequence requires judgment; deterministic controls should handle rules that machines can enforce exactly.
+
+**What could change the decision?** If every refund legally required accountable human authorization regardless of value, human approval would become mandatory for all transactions. Conversely, if policy allowed automatic refunds above ₹20,000 when a deterministic authorization token was present, that control could remain fully automated.
+
+## 9. One-line architect rule
+
+> **Prompt preferences, enforce invariants, escalate accountable judgment, and use evals to measure whether the whole system works.**
+
+## 10. Source basis
+
+- Official **Claude Platform prompting and tool-use documentation**: behavioural instructions, tool descriptions, schemas, and tool-selection guidance. :chatgpt-content-reference{index="5"}
+- Anthropic Engineering, **How we contain Claude across products** (May 25, 2026): supervision versus capability containment and scoped boundaries. :chatgpt-content-reference{index="6"}
+- Anthropic Engineering, **Demystifying evals for AI agents** (January 9, 2026): evals as lifecycle measurement and failure detection. :chatgpt-content-reference{index="7"}
+
 ## Sep 25, 2026
 
 # Week 10, Session 50 — Friday Consolidation: Reliability Means Choosing the Right Failure Path
