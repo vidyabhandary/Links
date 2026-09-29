@@ -1,5 +1,183 @@
 # Sep 29, 2026
 
+## Metamorphic Testing 
+— Test LLM Reliability Without Knowing the “Perfect” Answer
+
+### Concept
+
+Traditional software testing assumes you know the expected output:
+
+```text
+input → expected output
+```
+
+LLMs make that harder because many valid answers may exist.
+
+**Metamorphic testing** solves this by testing a **relationship between outputs** instead of checking one exact answer.
+
+Example:
+
+> Original: “Classify this support ticket: *I was charged twice*.”
+
+Then create a harmless variation:
+
+> “Please classify this support ticket: *I was charged twice*.”
+
+If the model changes from **Billing** to **Technical Support**, something is wrong.
+
+The rule being tested is:
+
+> **Irrelevant wording changes should not change the underlying decision.**
+
+This is especially useful when exact gold answers are expensive or impossible to define.
+
+Recent research is making this approach much more practical. A 2026 system called **LLMORPH** automated metamorphic testing across 36 transformation rules and more than 561,000 test executions, specifically targeting inconsistencies without requiring human-labelled answers. :chatgpt-content-reference{index="0"}
+
+---
+
+### Practical case study
+
+Imagine an AI system classifying customer complaints into:
+
+```text
+Billing
+Technical
+Cancellation
+General
+```
+
+You want these two inputs to produce the same result:
+
+```text
+"My invoice contains a duplicate charge."
+
+"Hi, could you please help? My invoice contains a duplicate charge."
+```
+
+You can generate test transformations such as:
+
+- add polite wording,
+- reorder non-essential sentences,
+- add irrelevant background,
+- paraphrase the request.
+
+If classification changes too often, you have found a **robustness problem** even without knowing the exact wording the model “should” produce.
+
+---
+
+### Production-oriented example
+
+Here the test verifies **invariance under irrelevant text changes**:
+
+```python
+import logging
+import os
+from enum import Enum
+
+from openai import OpenAI
+from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
+
+
+class Category(str, Enum):
+    BILLING = "billing"
+    TECHNICAL = "technical"
+    CANCELLATION = "cancellation"
+    GENERAL = "general"
+
+
+class Classification(BaseModel):
+    category: Category
+
+
+client = OpenAI()
+MODEL = os.getenv("LLM_MODEL", "gpt-5.6-luna")
+
+
+def classify(text: str) -> Category:
+    if not text.strip():
+        raise ValueError("Input must not be empty")
+
+    try:
+        response = client.responses.parse(
+            model=MODEL,
+            input=(
+                "Classify the support request. Ignore politeness, "
+                "writing style, and irrelevant background.\n\n"
+                f"{text}"
+            ),
+            text_format=Classification,
+        )
+
+        result = response.output_parsed
+        if result is None:
+            raise RuntimeError("No structured classification returned")
+
+        return result.category
+
+    except Exception:
+        logger.exception("classification_failed")
+        raise
+
+
+def assert_invariant(original: str, transformed: str) -> None:
+    first = classify(original)
+    second = classify(transformed)
+
+    if first != second:
+        raise AssertionError(
+            f"Metamorphic test failed: {first=} {second=}"
+        )
+```
+
+The production idea is not the specific transformation—it is building a **library of transformations that should preserve or predictably change behavior**.
+
+---
+
+### When to use it
+
+Use metamorphic testing when:
+
+- outputs are subjective or non-deterministic,
+- creating large labelled test sets is expensive,
+- you care about robustness to paraphrasing, formatting, language, or irrelevant context,
+- you're testing classifiers, RAG systems, agents, safety behavior, or reasoning.
+
+### When not to use it
+
+Don't use it instead of ordinary testing when you **do know the exact correct output**.
+
+For example:
+
+```text
+2 + 2 = 4
+```
+
+should simply be tested directly.
+
+Also, the transformation rule itself must be valid. If your supposedly “irrelevant” change alters meaning, the test becomes misleading.
+
+---
+
+### Important development
+
+Metamorphic testing is becoming particularly interesting for **LLM reasoning and safety evaluation**. A 2026 survey covering 93 studies found it being applied to hallucination, fairness, robustness, RAG, dialogue, and agents, while newer work also uses logically equivalent transformations to expose reasoning defects that static benchmarks miss. :chatgpt-content-reference{index="1"}
+
+### Architecture takeaway
+
+A strong GenAI evaluation stack should not ask only:
+
+> **“Was the answer correct?”**
+
+It should also ask:
+
+> **“Does the system behave consistently when the input changes in ways that should not matter?”**
+
+That gives you a second dimension of quality:
+
+**correctness + behavioral robustness**
+
 ## Direct Preference Optimization (DPO) 
 — Teach the Model Which Answer Is Better
 
