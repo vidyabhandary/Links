@@ -1,5 +1,117 @@
 # Some learnings for Claude Architect 
 
+## Sep 29, 2026
+
+# Workflow or Agent? Use Autonomy Only Where the Path Is Uncertain
+
+## 1. Level
+
+**Foundation Consolidation — Week 11, Session 52**
+
+## 2. Today’s concept
+
+Yesterday’s lesson asked **where a rule should live**. Today consolidates an earlier architectural choice: **should Claude follow a predefined workflow, or should it control the execution path as an agent?**
+
+Anthropic distinguishes the two clearly. In a **workflow**, application code determines the sequence of steps and Claude operates inside that structure. In an **agent**, Claude dynamically decides which tools to use, what to investigate next, and when the task is complete. Anthropic’s standing recommendation is to start with the simplest architecture that works: workflows give predictability for well-defined tasks; agents become valuable when the required steps cannot reasonably be known in advance. :chatgpt-content-reference{index="0"}
+
+| Requirement shape | Prefer |
+|---|---|
+| Steps known in advance | **Workflow** |
+| Branches known, classification decides route | **Workflow + routing** |
+| Unknown number/order of steps | **Agent** |
+| Open-ended investigation with environmental feedback | **Agent** |
+
+The important clue is **not task complexity alone**. A highly complex payroll process may still be a workflow if every step is prescribed. Conversely, a seemingly simple request such as “find why this service is failing and fix it” may require agentic behaviour because Claude cannot know beforehand which logs, files, dependencies, or tools will matter.
+
+Agents also have a cost: greater autonomy means variable tool usage, latency, token consumption, and more opportunities for errors to compound. Anthropic therefore recommends adding agentic complexity only when it demonstrably improves outcomes. :chatgpt-content-reference{index="1"}
+
+**Current-product note:** Anthropic’s 2026 platform now also offers **Managed Agents (Beta)**, positioned for long-running and asynchronous autonomous work, while the Messages API remains appropriate when developers want fine-grained control over their own loops. That product choice comes *after* deciding whether the problem actually needs agentic autonomy. :chatgpt-content-reference{index="2"}
+
+## 3. Why an architect cares
+
+Calling every Claude application an “agent” can lead to unnecessary autonomy.
+
+If the correct sequence is already known—validate invoice, check approval, post transaction—letting Claude invent the order creates variability without adding business value. Deterministic orchestration is easier to test, audit, secure, and cost-control.
+
+Use Claude’s autonomy where **reasoning about the next step is itself part of the problem**.
+
+## 4. Architect’s lens
+
+1. **Can I define the correct execution path and branches before seeing the request?**
+
+2. **Does Claude need environmental feedback to decide what step should happen next?**
+
+3. **Does additional autonomy create enough quality or flexibility to justify extra cost, latency, and operational risk?**
+
+## 5. Real-life example
+
+A security platform handles two jobs.
+
+The first creates a new employee account: validate HR record → create identity → assign standard groups → issue device request. Every stage and failure path is known. A **workflow** is the stronger design, even if Claude helps interpret job-title information.
+
+The second investigates an unexplained production alert. Claude may need to inspect metrics, query logs, examine a deployment, compare configuration, search documentation, or investigate a dependency. Which step comes next depends on what the previous tool reveals.
+
+That is a better **agent** candidate.
+
+Both tasks may use the same Claude model and similar tools. The architectural difference is whether **the application already knows the procedure** or whether **Claude must discover the procedure while executing it**.
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A company wants Claude to process supplier invoices.
+
+The required process is:
+
+1. extract invoice fields;
+2. validate supplier ID;
+3. compare purchase order;
+4. route mismatches to accounts payable;
+5. post validated invoices to ERP.
+
+All required branches are defined by finance policy.
+
+An engineer proposes an autonomous agent that chooses which validation tools to run and in what order.
+
+What is the **best architecture**?
+
+**A.** Use the autonomous agent because financial processing involves several tools.
+
+**B.** Use a predefined workflow, using Claude only where probabilistic interpretation is useful and keeping finance controls and routing deterministic.
+
+**C.** Use multiple agents, one for each finance step, to reduce individual-agent complexity.
+
+**D.** Let Claude create a processing plan for every invoice and execute it after an LLM grader approves the plan.
+
+## 7. Spot the clue
+
+The decisive phrase is:
+
+> **“All required branches are defined by finance policy.”**
+
+The system does not need Claude to discover *what to do next*. The path is already known.
+
+## 8. Answer reasoning
+
+**Correct answer: B.**
+
+Anthropic recommends workflows when tasks can be decomposed into predictable steps and agents when the required sequence cannot be hard-coded because it depends on intermediate discoveries. :chatgpt-content-reference{index="3"}
+
+A workflow also complements yesterday’s lesson: supplier validation, authorization, and posting rules are deterministic business controls. Claude can still add value inside the workflow—for example, extracting poorly formatted invoice descriptions or interpreting free text—without controlling the transaction sequence.
+
+**Why A is tempting but weaker:** multiple tools do not automatically imply an agent. Tool count and task complexity are secondary; the key question is whether the **next step must be dynamically reasoned about**.
+
+**What could change the decision?** If the system were instead investigating unexplained invoice anomalies across contracts, email, ERP history, and supplier records—with no predictable investigation path—an agent could be justified. If that investigation could run for a long time asynchronously, current Claude Managed Agents would also become a relevant implementation option. :chatgpt-content-reference{index="4"}
+
+## 9. One-line architect rule
+
+> **Use a workflow when you know the path; give Claude agentic control when discovering the path is part of the task.**
+
+## 10. Source basis
+
+- Official Anthropic Engineering **Building effective agents**: workflow-versus-agent distinction, architecture patterns, and simplicity-first guidance. :chatgpt-content-reference{index="5"}
+- Official **Claude Managed Agents** documentation, current September 2026: Managed Agents versus Messages API positioning for long-running autonomous work and fine-grained control. :chatgpt-content-reference{index="6"}
+
 ## Sep 28, 2026
 Where Should the Rule Live? Prompt vs Guardrail vs Approval vs Eval
 
