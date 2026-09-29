@@ -1,4 +1,94 @@
-# Sep 28, 206
+# Sep 29, 2026
+
+## Direct Preference Optimization (DPO) 
+— Teach the Model Which Answer Is Better
+
+### Concept
+
+Sometimes there isn't one objectively “correct” response.
+
+Consider two answers to the same customer-support question:
+
+```text
+A: Correct, concise, cites the policy, admits uncertainty.
+B: Correct, but verbose and makes an unsupported recommendation.
+```
+
+With **Supervised Fine-Tuning (SFT)**, you give the model the answer you want.
+
+With **Direct Preference Optimization (DPO)**, you give it:
+
+```text
+Prompt
+   ├── Chosen response   ✓
+   └── Rejected response ✗
+```
+
+The model learns to make **preferred responses more likely than rejected ones**.
+
+The important architectural difference from traditional RLHF is that DPO does **not require training a separate reward model and then running reinforcement learning**. It converts preference learning into a simpler optimization objective. :chatgpt-content-reference{index="0"}
+
+---
+
+### Realistic case study
+
+Suppose an enterprise AI assistant generates technically correct architecture recommendations, but reviewers consistently prefer answers that:
+
+- state assumptions explicitly,
+- separate facts from recommendations,
+- mention risks,
+- avoid unnecessary verbosity.
+
+You collect several thousand real prompts and have architects compare two candidate answers:
+
+```text
+"Which database should we use?"
+
+Chosen:
+"Given your multi-region write requirement, consider..."
+
+Rejected:
+"PostgreSQL is definitely the best database..."
+```
+
+DPO can teach the model this **judgment style** more effectively than trying to encode hundreds of subtle preferences into a system prompt.
+
+---
+
+### When to use it
+
+Use DPO when humans can **reliably say “A is better than B”** but writing an exact gold answer is difficult—for tone, helpfulness, reasoning style, summarization quality, safety behavior, or domain-specific judgment.
+
+### When **not** to use it
+
+Don't reach for DPO when:
+
+- the problem is missing knowledge → use retrieval.
+- you have clear correct outputs → SFT may be simpler.
+- reviewers cannot consistently agree on preferences.
+- you only have a handful of examples.
+
+Poor preference data simply teaches the model **poor preferences**.
+
+---
+
+### Architecture takeaway
+
+Choose the post-training technique based on the **feedback signal you actually possess**:
+
+```text
+Correct target answers      → SFT
+
+A is better than B          → DPO
+
+Verifiable reward / outcome → RL-style methods
+```
+
+Current libraries such as TRL now support DPO alongside SFT, GRPO, reward modeling and newer post-training approaches, reflecting how **post-training has become its own architectural layer rather than a single “fine-tuning” technique**. :chatgpt-content-reference{index="3"}
+
+> **Key principle:** When the requirement is subjective quality rather than factual correctness, learning from **comparisons** can be more natural than learning from perfect answers.
+
+# Sep 28, 2026
 
 ---
 
