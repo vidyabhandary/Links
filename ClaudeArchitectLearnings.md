@@ -1,5 +1,115 @@
 # Some learnings for Claude Architect 
 
+## Sep 30, 2026
+
+# Diagnose Before You Upgrade: Model Problem or Context Problem?
+
+## 1. Level
+
+**Foundation Consolidation — Week 11, Session 53**
+
+## 2. Today’s concept
+
+A common response to poor Claude performance is **“use a stronger model”** or **“give it more context.”** Both can be wrong. Before changing the model, determine whether Claude actually received the information needed to succeed.
+
+Anthropic defines **context engineering** more broadly than prompt engineering: it is the deliberate selection of everything available to Claude at inference time—system instructions, conversation history, retrieved documents, tool definitions, tool results, MCP-provided information, and other state. Anthropic also warns that context is finite and that irrelevant material can reduce model focus; simply filling a large context window is not equivalent to giving Claude useful context. :chatgpt-content-reference{index="0"}
+
+For diagnosis, separate four possibilities:
+
+| Symptom | Investigate first |
+|---|---|
+| Correct information never reached Claude | Retrieval/context pipeline |
+| Correct information is buried among large irrelevant inputs | Context selection/compaction |
+| Claude repeatedly chooses the wrong tool | Tool descriptions and instructions |
+| Claude has clear instructions + sufficient evidence but still fails | Prompt/model capability |
+
+This matters especially for agents. Yesterday you distinguished workflows from agents; agents generate their own context through repeated searches, tool calls, intermediate results, and conversation turns. Anthropic describes **progressive disclosure** and just-in-time retrieval as ways for an agent to acquire what it needs rather than preloading everything. The architectural objective is therefore not *maximum context*. It is **sufficient, relevant context at the point of decision**. :chatgpt-content-reference{index="1"}
+
+**Current-product note:** as of September 30, 2026, Anthropic’s platform documentation recommends server-side compaction for long-running conversations on supported models, with context editing available when finer-grained removal—such as old tool results—is needed. These features address context growth; they do not replace good information selection. :chatgpt-content-reference{index="2"}
+
+## 3. Why an architect cares
+
+Model upgrades can increase cost and latency while merely hiding an architectural defect. If the authoritative policy was never retrieved, a more capable model still lacks the policy. If 150 obsolete tool results obscure the current state, adding another 100,000 tokens may worsen the problem.
+
+Architectural diagnosis should therefore precede model escalation: **verify evidence delivery, remove irrelevant context, inspect tool behaviour, then test whether model capability is actually the limiting factor.**
+
+## 4. Architect’s lens
+
+1. **Did Claude receive the evidence required to make this decision, in a form it could reasonably identify and use?**
+
+2. **Is relevant information being crowded out by stale history, unnecessary tool definitions, or obsolete tool results?**
+
+3. **If I rerun the case with clean, sufficient context, does the failure persist strongly enough to justify changing the prompt or model?**
+
+## 5. Real-life example
+
+A research assistant initially performs well but becomes unreliable during long investigations. Engineers propose moving every request to a more expensive model.
+
+Trace inspection reveals another pattern: after 30 searches, the conversation contains full outputs from early searches, duplicate webpages, rejected hypotheses, and dozens of tool results. The final question depends on only three recent sources.
+
+The team changes the context architecture instead. Search results are summarized, obsolete tool outputs are removed, source identifiers are retained for later retrieval, and detailed content is loaded only when needed.
+
+Accuracy recovers without changing models.
+
+The original problem was not that Claude lacked reasoning capability. **The evidence required for reasoning had become diluted by accumulated context.**
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A Claude-based technical-support agent diagnoses database incidents.
+
+Evaluation shows that it frequently recommends generic fixes even though the company’s troubleshooting knowledge base contains the correct procedures.
+
+Engineers discover that each request sends Claude:
+
+- all 70 available tool definitions;
+- the full conversation history;
+- 25 retrieved documents;
+- previous raw tool outputs.
+
+The correct procedure is usually present somewhere in the input.
+
+What should the architect do **first**?
+
+**A.** Upgrade every request to the most capable available Claude model.
+
+**B.** Increase retrieval from 25 to 50 documents so the correct procedure appears more often.
+
+**C.** Reduce irrelevant context, improve retrieval precision and tool exposure, and rerun the evaluation before changing models.
+
+**D.** Increase the maximum output-token limit so Claude has more room to reason.
+
+## 7. Spot the clue
+
+The important phrase is:
+
+> **“The correct procedure is usually present somewhere in the input.”**
+
+The problem is not obviously missing knowledge. The architecture is supplying **too much poorly curated information**.
+
+## 8. Answer reasoning
+
+**Correct answer: C.**
+
+Anthropic’s context-engineering guidance treats context as a limited resource whose contents should be actively curated. For agentic systems, it recommends patterns such as just-in-time retrieval, progressive disclosure, compaction, and removal of obsolete tool information rather than continuously accumulating everything encountered. :chatgpt-content-reference{index="3"}
+
+The current Claude platform even separates different sources of context pressure: tool search can avoid loading large toolsets upfront, while context editing can remove old tool results after they cease to be useful. :chatgpt-content-reference{index="4"}
+
+**Why A is tempting but weaker:** a stronger model might cope better with noisy context and therefore improve the score. But that would treat the symptom while preserving unnecessary token cost, latency, and fragility.
+
+**What could change the decision?** If the same cases still failed after Claude received a clean, authoritative, sufficient context—and eval traces showed that retrieval and tool selection were working correctly—model capability or prompting would become a stronger hypothesis.
+
+## 9. One-line architect rule
+
+> **Before upgrading the model, prove that Claude received the right information—not merely a lot of information.**
+
+## 10. Source basis
+
+- Anthropic Engineering, **Effective context engineering for AI agents**: context curation, progressive disclosure, just-in-time retrieval, compaction, and context pollution. :chatgpt-content-reference{index="5"}
+- Official **Claude Platform context-management documentation**, checked September 30, 2026: server-side compaction and context editing. :chatgpt-content-reference{index="6"}
+- Official **Manage tool context** documentation: tool search, programmatic tool calling, prompt caching, and removal of stale tool results. :chatgpt-content-reference{index="7"}
+
 ## Sep 29, 2026
 
 # Workflow or Agent? Use Autonomy Only Where the Path Is Uncertain
