@@ -1,5 +1,145 @@
 # Some learnings for Claude Architect 
 
+## Oct 1, 2026
+
+# Diagnose the Constraint Before Changing the Architecture
+
+## 1. Level
+
+**Foundation Consolidation — Week 11, Session 55**
+
+This week trained one core habit: **do not jump from a symptom to a technology change**.
+
+The four decisions fit into one diagnostic sequence:
+
+1. **Where should the requirement live?**  
+   Behaviour → prompt. Hard invariant → deterministic control. Accountable judgment → approval. Quality measurement → eval.
+
+2. **Does the task need an agent?**  
+   Known execution path → workflow. Unknown next steps requiring environmental feedback → agent.
+
+3. **Is poor performance really a model problem?**  
+   First verify retrieval, context quality, tool exposure, and instructions.
+
+4. **If model capability is genuinely limiting, how much capability is needed?**  
+   Use evals to choose the least costly configuration that meets the requirement; escalate harder cases selectively where useful.
+
+Anthropic repeatedly recommends the same underlying principle: **use the simplest architecture that works and introduce complexity in response to demonstrated failure modes, not anticipation.** Its agent guidance similarly distinguishes predictable workflows from autonomous tool-using loops. [Anthropic Resources](https://resources.anthropic.com/building-effective-ai-agents?utm_source=chatgpt.com)
+
+## 2. Why an architect cares
+
+Architecture errors often look like model errors.
+
+A team may upgrade the model when retrieval is poor, introduce an agent where deterministic routing was sufficient, add human approval instead of enforcing authorization, or load more context when existing context is already noisy.
+
+These choices increase cost, latency, and operational risk without addressing the actual constraint.
+
+The architect’s job is therefore to ask:
+
+> **What changed, what constraint is failing, and what is the smallest intervention that fixes it?**
+
+Anthropic’s context-engineering guidance explicitly treats context as a finite resource and recommends high-signal selection rather than indiscriminately adding information. [Anthropic](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents?utm_source=chatgpt.com)
+
+## 3. Architect’s lens
+
+1. **Is the failure caused by missing capability, or by architecture failing to give Claude the right information, tools, or boundaries?**
+
+2. **Can deterministic orchestration solve the problem before I introduce more autonomy, stronger models, or human intervention?**
+
+3. **What eval would prove that the proposed change actually improves the business outcome rather than merely changing behaviour?**
+
+## 4. Integrated scenario
+
+A bank builds a Claude assistant to investigate disputed card transactions.
+
+The current design retrieves transaction information, policy documents, and customer history. Claude then recommends the next action.
+
+Production testing reveals three problems:
+
+- Claude occasionally recommends refunds above the employee’s authorization limit.
+- Most investigations follow a predictable sequence, but unusual fraud cases require searching several systems dynamically.
+- Difficult cases often fail because retrieved policy documents include many obsolete versions.
+
+A poor redesign says: **move everything to the strongest model and add human approval to every case.**
+
+A better design separates the constraints.
+
+The authorization limit becomes a **deterministic control** outside Claude.
+
+Routine disputes remain a **workflow** because their path is known.
+
+Only genuinely open-ended fraud investigations gain **agentic exploration**.
+
+Policy retrieval is fixed so Claude receives the current authoritative version before model capability is reconsidered.
+
+Only after those changes should evals determine whether harder cases need a stronger model.
+
+That sequence matters because each change addresses a different root cause.
+
+## 5. Friday checkpoint
+
+These questions are **practice-derived, not authentic Anthropic certification questions**.
+
+### Question 1
+
+A support agent sometimes reveals internal troubleshooting notes that customers must never see. Engineers propose strengthening the system prompt.
+
+What is the strongest architectural response?
+
+**A.** Add more examples of forbidden responses.  
+**B.** Prevent customer-facing sessions from accessing the restricted notes.  
+**C.** Ask a second model to review each response.  
+**D.** Require a human to approve every response.
+
+**Answer: B**
+
+The phrase **“must never see”** signals a hard access boundary, not a behavioural preference. Anthropic’s containment guidance makes the same distinction: model-layer controls influence behaviour, while environmental and permission boundaries constrain what the agent can actually reach. [Anthropic](https://www.anthropic.com/engineering/how-we-contain-claude?utm_source=chatgpt.com)
+
+---
+
+### Question 2
+
+A research agent performs poorly after long investigations. The strongest available model improves results slightly, but traces show hundreds of stale search results and tool outputs remain in context.
+
+What should happen first?
+
+**A.** Permanently upgrade the model.  
+**B.** Increase the context window further.  
+**C.** Curate and compact the context, then rerun the eval.  
+**D.** Split every investigation across multiple agents.
+
+**Answer: C**
+
+The clue is **stale accumulated context**. Anthropic recommends progressive disclosure, just-in-time retrieval, and context curation because more tokens can reduce rather than improve usable signal. [Anthropic](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents?utm_source=chatgpt.com)
+
+---
+
+### Question 3
+
+A claims process has a fixed validation sequence for 95% of cases, while 5% require unpredictable investigation across several systems.
+
+What is the best design?
+
+**A.** Make every claim autonomous.  
+**B.** Keep the standard path as a workflow and invoke agentic investigation only for exceptional cases.  
+**C.** Use several collaborating agents for every claim.  
+**D.** Let Claude generate a new workflow for each claim.
+
+**Answer: B**
+
+The strongest clue is that **95% already has a known path**. Autonomy earns its complexity only in the minority of cases where discovering the next step is part of the task. Anthropic’s guidance continues to favor matching architectural complexity to business need rather than making all workloads agentic. [Anthropic Resources](https://resources.anthropic.com/building-effective-ai-agents?utm_source=chatgpt.com)
+
+## 6. One-line architect rule
+
+> **Diagnose the failing constraint first; then change the smallest layer—prompt, context, control, workflow, autonomy, or model—that actually owns the problem.**
+
+## 7. Source basis
+
+- Anthropic Engineering, **Effective context engineering for AI agents**: high-signal context, progressive disclosure, agentic retrieval, and simplicity-first design. [Anthropic](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents?utm_source=chatgpt.com)
+- Anthropic, **Building Effective AI Agents**: choosing workflow versus agent architectures and matching complexity to business value. [Anthropic Resources](https://resources.anthropic.com/building-effective-ai-agents?utm_source=chatgpt.com)
+- Anthropic Engineering, **How we contain Claude across products**: model behaviour versus hard environmental and permission boundaries. [Anthropic](https://www.anthropic.com/engineering/how-we-contain-claude?utm_source=chatgpt.com)
+
+
 ## Sep 30, 2026
 
 # Diagnose Before You Upgrade: Model Problem or Context Problem?
