@@ -1,5 +1,11 @@
 # Links
 
+## Oct 06, 2026
+
+1. [Visual Transformer Explainer](https://poloclub.github.io/transformer-explainer/)
+
+The best visual (and dynamic) explanation of Transformer.
+
 ## Sept 09, 2026
 
 1. [Built for Reliability: How American Express Processes Payments at Scale](https://blog.bytebytego.com/p/built-for-reliability-how-american)
