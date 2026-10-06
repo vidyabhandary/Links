@@ -1,3 +1,174 @@
+# Oct 6, 2026
+
+## Shadow Deployment 
+— Test a New Model on Real Traffic Without Serving Its Answers
+
+### Concept
+
+A new LLM may look better on benchmarks yet still break your application because of subtle differences in formatting, refusals, tool use, latency, or cost.
+
+A **shadow deployment** lets you test the candidate model against **real production requests** while users continue receiving responses from the current model.
+
+```text
+Production request
+      │
+      ├──→ Current model ──→ User
+      │
+      └──→ Candidate model ──→ Evaluation only
+```
+
+The candidate's answer is **never returned to the user**.
+
+Amazon SageMaker's shadow testing uses exactly this pattern: the production variant serves requests while a configurable percentage is replicated to a shadow variant whose responses are not returned. [AWS Documentation](https://docs.aws.amazon.com/hi_in/sagemaker/latest/dg/shadow-tests-create.html?utm_source=chatgpt.com)
+
+---
+
+### Practical case study
+
+Suppose your support assistant currently uses **Model A**, and you want to move to **Model B** because it is cheaper and stronger on public benchmarks.
+
+Offline tests look good.
+
+But production traffic contains things your test set missed:
+
+- unusually long conversations,
+- malformed customer input,
+- rare product names,
+- multilingual questions,
+- edge-case refusals.
+
+Instead of switching immediately:
+
+```text
+10% of production requests
+          ↓ copy
+ Model A        Model B
+   ↓              ↓
+ user          stored only
+                  ↓
+          compare quality
+          latency
+          cost
+          schema failures
+```
+
+After sufficient evidence, move to a **canary deployment**, where a small percentage of users actually receive Model B.
+
+OpenAI's current evaluation guidance explicitly recommends evals when **upgrading or trying new models**, because generative systems can vary even when the application code does not. [OpenAI Developers](https://developers.openai.com/api/docs/guides/evals?utm_source=chatgpt.com)
+
+---
+
+### Compact production pattern
+
+```python
+import asyncio
+import logging
+import random
+
+from openai import AsyncOpenAI
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
+client = AsyncOpenAI()
+
+
+class Settings(BaseSettings):
+    production_model: str
+    candidate_model: str
+    shadow_rate: float = 0.10
+
+
+class Result(BaseModel):
+    text: str
+
+
+cfg = Settings()
+
+
+async def generate(model: str, prompt: str) -> Result:
+    response = await client.responses.create(
+        model=model,
+        input=prompt,
+    )
+    return Result(text=response.output_text)
+
+
+async def run_shadow(prompt: str) -> None:
+    try:
+        candidate = await generate(cfg.candidate_model, prompt)
+
+        # Persist only approved evaluation metadata/output.
+        logger.info(
+            "shadow_completed",
+            extra={"output_chars": len(candidate.text)},
+        )
+
+    except Exception:
+        # Shadow failures must never break the user request.
+        logger.exception("shadow_model_failed")
+
+
+async def handle_request(prompt: str) -> Result:
+    if not prompt.strip():
+        raise ValueError("Prompt must not be empty")
+
+    if random.random() < cfg.shadow_rate:
+        asyncio.create_task(run_shadow(prompt))
+
+    return await generate(cfg.production_model, prompt)
+```
+
+In a real system, use a durable queue rather than an in-process background task if losing shadow evaluations during restarts matters.
+
+Also avoid blindly storing production prompts: apply your normal **PII, retention, and access-control policies**.
+
+---
+
+### When to use it
+
+Use shadow deployment when changing:
+
+- foundation models,
+- model providers,
+- major prompt versions,
+- fine-tuned models,
+- agent reasoning models.
+
+It is particularly valuable when production traffic is more diverse than your test dataset.
+
+### When not to use it
+
+Don't shadow every request indefinitely.
+
+It can nearly double inference cost during the test and may duplicate sensitive data processing.
+
+For small applications with excellent representative offline evaluation, a limited canary may be sufficient.
+
+---
+
+### Architecture takeaway
+
+Treat a model upgrade differently from a normal library upgrade.
+
+A strong rollout path is:
+
+```text
+Offline eval
+     ↓
+Shadow traffic
+     ↓
+Canary traffic
+     ↓
+Gradual rollout
+     ↓
+100%
+```
+
+> **Public benchmarks tell you whether a model is generally better. Shadow traffic tells you whether it is better for your application.**
+
+**Ledger update:** Shadow Deployment / production model upgrade validation — **Production Operations**.
+
 # Sep 29, 2026
 
 ## Metamorphic Testing 
