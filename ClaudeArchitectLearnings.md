@@ -1,5 +1,108 @@
 # Some learnings for Claude Architect 
 
+## Oct 6, 2026
+
+# MCP vs Direct Tools: Standardize Integration, Not Trust
+
+## 1. Level
+
+**Foundation Consolidation — Week 12, Session 57**
+
+## 2. Today’s concept
+
+MCP is an open protocol that standardizes how AI applications connect to external tools and data sources. Instead of writing a bespoke adapter between every AI client and every service, an MCP server exposes capabilities through a common interface that MCP-capable clients can discover and use. [Claude Platform Docs](https://docs.anthropic.com/en/docs/mcp?utm_source=chatgpt.com)
+
+The architectural choice is therefore mainly about **integration standardization and ownership**, not intelligence:
+
+| Situation | Usually prefer |
+|---|---|
+| Small number of application-specific operations | Direct client-defined tools |
+| Same capability must serve several AI clients | MCP |
+| Existing service already exposes a suitable MCP server | MCP |
+| Need complete control over custom execution semantics | Direct tool integration |
+
+Direct tools remain entirely legitimate. Anthropic’s tool-use contract lets your application define a schema, receive Claude’s requested arguments, execute your own code, and return the result. This is often the simplest choice for proprietary application logic such as `approve_claim`, `lookup_customer_entitlements`, or `create_quote`. [Claude Platform](https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works?utm_source=chatgpt.com)
+
+The important consolidation point is that **MCP is not a trust boundary**. A standardized tool can still be overprivileged, malicious, compromised, or return prompt-injected content. Anthropic specifically warns that external sources—including MCP servers—introduce both execution and prompt-injection risks, and that a remote server may change after the original trust decision. Permissions, credentials, data access, and runtime containment therefore remain separate architectural concerns. [Anthropic](https://www.anthropic.com/engineering/how-we-contain-claude?utm_source=chatgpt.com)
+
+## 3. Why an architect cares
+
+MCP can greatly reduce integration duplication, especially when capabilities must work across Claude Code, Claude applications, internal agents, or other MCP-compatible clients. But adopting MCP everywhere can add another abstraction layer without business value when one application simply needs three internal APIs.
+
+The decision is not **“MCP is newer, therefore better.”** It is: **does interoperability justify the protocol layer, while preserving appropriate authorization and operational controls?**
+
+## 4. Architect’s lens
+
+1. **Will this capability be reused across multiple AI applications or clients, or is it private to one application?**
+
+2. **Do I need MCP’s standardized discovery/interface, or would a direct typed tool be simpler and easier to operate?**
+
+3. **Regardless of interface, what identity, permissions, network boundaries, and data controls limit what the tool can actually do?**
+
+## 5. Real-life example
+
+A company builds Claude assistants for developers, support staff, and operations teams.
+
+All three need access to Jira. Building separate Jira wrappers for every assistant duplicates authentication, schemas, maintenance, and tool descriptions. A centrally governed Jira MCP server provides a reusable interface, making MCP attractive.
+
+The finance assistant is different. It has one highly specialized operation: `calculate_contract_rebate`, implemented inside an existing finance service and used nowhere else. Exposing it directly as an application-defined Claude tool may be simpler than creating and operating an MCP server purely for one function.
+
+In both cases, authorization remains outside Claude. The Jira integration exposes only projects the authenticated employee may access; the rebate tool validates account permissions before executing.
+
+**Interface reuse determines MCP suitability. Security requirements exist either way.**
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+An enterprise has six Claude-based applications. Each independently implements connectors to GitHub, Jira, and an internal documentation platform.
+
+Teams report duplicated connector code, inconsistent tool descriptions, and repeated maintenance whenever an API changes.
+
+A proposed architecture replaces these duplicate integrations with shared MCP servers.
+
+What is the **strongest reason** to adopt MCP in this situation?
+
+**A.** MCP makes tool results trustworthy because servers follow a standard protocol.
+
+**B.** MCP eliminates the need for application-level authorization because authentication is handled by the server.
+
+**C.** MCP provides a standardized reusable interface so multiple AI applications can consume the same external capabilities without maintaining separate bespoke integrations.
+
+**D.** MCP allows Claude to execute external operations without an application or server performing them.
+
+## 7. Spot the clue
+
+The decisive phrases are:
+
+> **“six Claude-based applications”** and **“duplicated connector code.”**
+
+The problem being solved is **integration reuse and standardization**, not model quality or security.
+
+## 8. Answer reasoning
+
+**Correct answer: C.**
+
+MCP standardizes the interface between AI applications and external tools/data sources, making it particularly valuable when the same integrations must be consumed across multiple clients. [Claude Platform Docs](https://docs.anthropic.com/en/docs/mcp?utm_source=chatgpt.com)
+
+**Why A is tempting but weaker:** standardization may improve consistency, but it does not establish trust. Anthropic explicitly notes that third-party tools and MCP-accessible content can carry malicious instructions or otherwise change behaviour unexpectedly. Tool permissions and environmental restrictions must still constrain the possible blast radius. [Anthropic](https://www.anthropic.com/engineering/how-we-contain-claude?utm_source=chatgpt.com)
+
+The same principle from yesterday still applies: Claude requests an operation; some controlled execution environment performs it. MCP changes the integration contract, not the fundamental trust model.
+
+**What could change the decision?** If only one application used these integrations and the existing direct tools were simple and stable, migrating to MCP might add unnecessary operational complexity. Conversely, if dozens of AI applications required the same systems, the reuse advantage would become stronger.
+
+**Current-product nuance:** Anthropic’s Messages API can currently connect directly to remote MCP servers through its MCP connector, with tool allowlisting/denylisting and per-tool configuration. The connector presently supports MCP tool calls rather than the entire MCP feature set, and Anthropic notes specific data-retention considerations for this feature. [Claude Platform](https://platform.claude.com/docs/en/agents-and-tools/mcp-connector?utm_source=chatgpt.com)
+
+## 9. One-line architect rule
+
+> **Choose MCP to standardize reusable integrations; choose direct tools for simplicity—but enforce trust, authorization, and blast-radius controls independently of either interface.**
+
+## 10. Source basis
+
+- Official **Anthropic MCP documentation**: MCP purpose and standardized connection model. [Claude Platform Docs](https://docs.anthropic.com/en/docs/mcp?utm_source=chatgpt.com)
+- Official **Claude Platform tool-use and MCP connector documentation**, checked October 6, 2026: direct tools, MCP connectivity, tool configuration, current connector scope and retention notes. [Claude Platform](https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works?utm_source=chatgpt.com)
+- Anthropic Engineering, **How we contain Claude across products**: external-tool trust, prompt-injection risk, permissions, and containment. [Anthropic](https://www.anthropic.com/engineering/how-we-contain-claude?utm_source=chatgpt.com)
+
 ## Oct 1, 2026
 
 # Diagnose the Constraint Before Changing the Architecture
