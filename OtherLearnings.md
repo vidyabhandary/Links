@@ -1,3 +1,163 @@
+# Oct 7, 2026
+
+## Lost in the Middle 
+— Context Position Can Change the Answer
+
+### Concept
+
+A model may support a **100K-token context window**, but that does **not** mean it uses every position equally well.
+
+“**Lost in the Middle**” describes a common pattern where relevant information is easier for an LLM to use when it appears near the **beginning or end** of a long prompt, and harder when buried in the middle.
+
+```text
+Beginning        Middle               End
+   ★               ↓                  ★
+ strong use     weaker use         strong use
+```
+
+The original TACL study found this effect even in models explicitly designed for long contexts. [MIT Press Direct](https://direct.mit.edu/tacl/article/doi/10.1162/tacl_a_00638/119630/Lost-in-the-Middle-How-Language-Models-Use-Long?utm_source=chatgpt.com)
+
+A May 22, 2026 study tested newer long-context models and still found substantial position-dependent failures on reasoning tasks, although some newer models had improved considerably. [arXiv](https://arxiv.org/abs/2605.23170?utm_source=chatgpt.com)
+
+The important lesson:
+
+> **Context-window capacity tells you what fits, not what the model will reliably use.**
+
+---
+
+### Practical case study
+
+Imagine your RAG system retrieves 15 policy sections for:
+
+> “Can this customer receive a refund after 45 days?”
+
+The critical exception appears in chunk #8.
+
+```text
+Prompt
+
+Chunk 1
+Chunk 2
+...
+Chunk 8  ← critical exception
+...
+Chunk 15
+Question
+```
+
+Retrieval may be perfect—the correct evidence is present—but the model can still overlook it.
+
+This explains an important production failure mode:
+
+```text
+Retrieval Recall@K = excellent
+
+but
+
+Answer accuracy = poor
+```
+
+The problem may therefore be **context utilization**, not retrieval.
+
+---
+
+### Production-oriented mitigation
+
+Assume retrieval and reranking have already happened. This function only changes **where important chunks are placed**:
+
+```python
+import logging
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+
+class Chunk(BaseModel):
+    text: str = Field(min_length=1)
+    score: float = Field(ge=0.0, le=1.0)
+
+
+def edge_pack(chunks: list[Chunk], max_chars: int = 12_000) -> str:
+    if max_chars <= 0:
+        raise ValueError("max_chars must be positive")
+
+    ranked = sorted(chunks, key=lambda c: c.score, reverse=True)
+
+    selected: list[Chunk] = []
+    used = 0
+
+    for chunk in ranked:
+        if used + len(chunk.text) > max_chars:
+            continue
+
+        selected.append(chunk)
+        used += len(chunk.text)
+
+    # Put highly ranked evidence near both prompt edges.
+    start: list[str] = []
+    end: list[str] = []
+
+    for index, chunk in enumerate(selected):
+        target = start if index % 2 == 0 else end
+        target.append(chunk.text)
+
+    logger.info("context_packed", extra={"chunks": len(selected)})
+
+    return "\n\n".join(start + list(reversed(end)))
+```
+
+Notice what this is **not** doing:
+
+```text
+reranking → deciding WHAT is important
+
+edge packing → deciding WHERE important evidence appears
+```
+
+Those are separate concerns.
+
+---
+
+### When to use it
+
+Use position-aware context design when prompts contain **many retrieved documents, long conversation histories, contracts, reports, or large codebases**.
+
+It is especially worth testing when the correct evidence is retrieved but answer quality mysteriously deteriorates as context grows.
+
+### When not to use it
+
+Don't assume every model always has a perfect U-shaped weakness. Position sensitivity varies by model, task, distractors, and context length.
+
+And don't solve a 10K-token problem by inventing complicated context engineering if the model already handles it reliably.
+
+---
+
+### 2026 development
+
+Recent research suggests this is still not a solved problem. A March 2026 theoretical study argued that the familiar start/end advantage may arise partly from structural properties of causal transformers themselves, rather than only from training or positional encodings. [arXiv](https://arxiv.org/abs/2603.10123?utm_source=chatgpt.com)
+
+So simply advertising a larger context window does **not automatically eliminate positional bias**.
+
+### Architecture takeaway
+
+When evaluating long-context systems, test not only:
+
+```text
+Is the correct evidence present?
+```
+
+but also:
+
+```text
+Does accuracy change when the same evidence
+moves from beginning → middle → end?
+```
+
+> **Retrieval quality tells you whether the model received the right information. Context-utilization testing tells you whether it actually used it.**
+
+**Ledger update:** Lost in the Middle / positional context bias — **Prompting & Context Engineering**.
+
+
 # Oct 6, 2026
 
 ## Shadow Deployment 
