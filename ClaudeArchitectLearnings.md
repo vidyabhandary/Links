@@ -1,5 +1,118 @@
 # Some learnings for Claude Architect 
 
+## Oct 8, 2026
+
+# Prompt Caching vs Retrieval vs Context Reduction: Optimize the Right Problem
+
+## 1. Level
+
+**Foundation Consolidation — Week 12, Session 59**
+
+## 2. Today’s concept
+
+Yesterday distinguished **direct context from RAG**. Today adds a third mechanism that is often confused with both: **prompt caching**.
+
+Prompt caching does **not** decide what information Claude should see. It reduces the processing cost and latency of repeatedly sending an identical prompt prefix—such as a large system prompt, tool definitions, reference documents, or earlier conversation history. Claude still receives those cached tokens as context; Anthropic’s usage accounting explicitly counts cached tokens as part of total input. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+
+This creates three different architectural problems:
+
+| Problem | Primary mechanism |
+|---|---|
+| Corpus is huge; only a subset is relevant | **Retrieval / RAG** |
+| Relevant context is correct but repeatedly reused | **Prompt caching** |
+| Conversation/context keeps growing with obsolete material | **Compaction or context editing** |
+
+The distinction matters because caching can make a **bad context architecture cheaper** without making it better. If you repeatedly send a 150,000-token handbook when only two pages are relevant, caching may reduce repeated input processing cost, but Claude still has to reason across that large context. Retrieval addresses relevance. Likewise, if an agent accumulates old tool results until important evidence becomes difficult to use, caching those results more efficiently does not solve context pollution; context reduction does. Anthropic documents prompt caching and context editing as separate mechanisms for exactly these different concerns. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+
+Current Claude Platform prompt caching supports automatic caching or explicit cache breakpoints. The standard cache lifetime is **5 minutes**, with a **1-hour** option at additional write cost. Automatic caching is convenient for growing multi-turn conversations; explicit breakpoints are useful when stable sections and changing sections have different lifetimes. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+
+## 3. Why an architect cares
+
+Cost optimizations can obscure quality problems.
+
+A dashboard showing a 90% reduction in input-processing cost may look excellent, yet the application may still be sending irrelevant documents, unnecessarily exposing sensitive context, or approaching the context limit. Conversely, building a vector database purely to reduce the repeated processing cost of a stable 20,000-token reference document may introduce needless retrieval complexity if that whole document genuinely belongs in every request.
+
+The architect must identify whether the constraint is **selection, repetition, or growth** before choosing the optimization.
+
+## 4. Architect’s lens
+
+1. **Is my problem that Claude receives too much irrelevant information, or that useful information is simply expensive to resend repeatedly?**
+
+2. **Does this content remain identical long enough and recur frequently enough for a cache hit to be likely?**
+
+3. **Am I optimizing token-processing cost while leaving context relevance, authorization, and information freshness unchanged?**
+
+## 5. Real-life example
+
+A tax-support application answers questions using a 30,000-token annual tax guide.
+
+Every request requires the full guide because questions frequently combine rules from several sections. Users typically ask five or six questions within ten minutes.
+
+The team considers RAG solely to reduce API cost.
+
+That may be unnecessary complexity. If evals show that supplying the complete guide produces reliable answers and the guide is identical across requests, the static guide is a strong **prompt-caching** candidate. The first request writes it to cache; subsequent requests can reuse the same prefix more cheaply.
+
+Later, the knowledge base expands to 2,000 guides covering multiple countries and tax years. Now the problem changes. The architecture should first **retrieve the applicable jurisdiction and year**, then potentially **cache the resulting stable material** for repeated questions.
+
+Retrieval and caching can therefore complement each other.
+
+## 6. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A Claude-based engineering assistant receives:
+
+- a 25,000-token architecture standard that changes monthly;
+- 40 stable tool definitions;
+- a different engineer question on every request.
+
+Hundreds of engineers use the assistant continuously. Evals show that Claude genuinely needs the complete architecture standard for many cross-cutting questions, and answer quality is good.
+
+The team wants to reduce latency and repeated input cost **without changing what Claude sees**.
+
+What is the best first change?
+
+**A.** Replace the architecture standard with vector retrieval.
+
+**B.** Cache the stable system content, tool definitions, and architecture standard while leaving the changing user question outside the reusable prefix.
+
+**C.** Summarize the architecture standard to one page before every request.
+
+**D.** Remove earlier context aggressively after every turn.
+
+## 7. Spot the clue
+
+The decisive constraints are:
+
+> **“Claude genuinely needs the complete architecture standard”**
+
+and
+
+> **“without changing what Claude sees.”**
+
+The quality architecture is already working. The issue is repeated processing of stable content.
+
+## 8. Answer reasoning
+
+**Correct answer: B.**
+
+Anthropic recommends placing reusable static content—such as tool definitions, system instructions, context, and examples—before changing request-specific content and caching the stable prefix. Subsequent requests with a matching prefix can reuse that cached representation, reducing processing cost and latency. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+
+**Why A is tempting but weaker:** retrieval is often the correct answer for large document collections, as yesterday’s lesson showed. But here evals establish that the **whole document is genuinely useful**. Introducing retrieval would create a new retrieval-miss failure mode to solve a cost problem that caching addresses directly.
+
+One subtle implementation clue matters: cache reuse depends on an identical prefix. Anthropic warns that placing changing elements such as timestamps or per-request data before the cache breakpoint can destroy cache hits. Stable content should therefore precede the variable suffix. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+
+**What could change the decision?** If the architecture standard grew to hundreds of thousands of mostly irrelevant tokens, retrieval or summarization could become necessary for quality and context efficiency. If a long-running conversation instead accumulated obsolete tool results, context editing or compaction would address that growth problem; caching alone would not. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/context-editing)
+
+## 9. One-line architect rule
+
+> **Retrieve to select, compact to remove, cache to avoid repeatedly processing context that you already know should remain.**
+
+## 10. Source basis
+
+- Official **Claude Platform — Prompt caching**, checked October 8, 2026: automatic/explicit caching, prefix reuse, TTLs, pricing mechanics, and cache placement. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+- Official **Claude Platform — Context editing**: removing obsolete context and its interaction with prompt caching. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/context-editing)
+
 ## Oct 6, 2026
 
 # MCP vs Direct Tools: Standardize Integration, Not Trust

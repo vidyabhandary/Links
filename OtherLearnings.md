@@ -1,3 +1,80 @@
+# Oct 8, 2026
+
+Recursive chunking is a text-splitting strategy used in RAG (Retrieval-Augmented Generation) to divide large documents into smaller chunks while preserving meaningful text boundaries as much as possible.
+
+### How it works
+
+Instead of blindly splitting text every 500 characters, recursive chunking tries different separators in order of priority:
+
+1. Paragraphs (`\n\n`) — Try splitting at paragraph boundaries.
+2. Lines (`\n`) — If a chunk is still too large, split at line boundaries.
+3. Sentences or spaces — Split further when necessary.
+4. Characters — As a last resort, split the text to meet the size limit.
+
+The process repeats until every chunk fits the configured size.
+
+### Example
+
+Suppose you have a document with three paragraphs and a maximum chunk size of 500 characters.
+
+Original document
+
+Paragraph 1 — 300 characters
+
+Paragraph 2 — 800 characters
+
+Paragraph 3 — 200 characters
+
+Recursive splitting
+
+Chunk 1
+
+Paragraph 1
+
+300 characters
+
+Chunk 2
+
+Paragraph 2A
+
+\~400 characters
+
+Chunk 3
+
+Paragraph 2B
+
+\~400 characters
+
+Chunk 4
+
+Paragraph 3
+
+200 characters
+
+Illustrative output. Actual chunks depend on separators, whitespace, overlap, and how the splitter combines smaller sections.
+
+### Python example using LangChain
+
+```
+from langchain_text_splitters import RecursiveCharacterTextSplittersplitter = RecursiveCharacterTextSplitter(    chunk_size=500,    chunk_overlap=50,    separators=["\n\n", "\n", ". ", " ", ""])chunks = splitter.split_text(document)
+```
+
+Here:
+
+- `chunk_size=500`: Target maximum of 500 characters.
+- `chunk_overlap=50`: Repeats some text across adjacent chunks to help preserve context.
+- `separators`: Defines the order in which boundaries are attempted.
+
+### Why use it in RAG?
+
+Advantages: Better preservation of paragraphs and sentences than fixed-size splitting, usually improving the coherence of retrieved chunks.
+
+Limitation: It doesn't actually understand meaning. It follows structural boundaries, so it can still split an important explanation across chunks.
+
+Key distinction: Recursive chunking is structure-aware, whereas semantic chunking uses embeddings or other semantic signals to identify changes in meaning.
+
+For most text-based RAG applications, recursive chunking is a good starting strategy before considering more sophisticated approaches.
+
 # Oct 7, 2026
 
 ## Lost in the Middle 
