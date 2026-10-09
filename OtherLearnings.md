@@ -1,3 +1,70 @@
+# Oct 9, 2026
+
+## SQL Knowledge Nugget: Conditional Aggregation using `CASE WHEN`
+
+&#x20;2-minute read
+
+### Concept
+
+Conditional aggregation lets you calculate totals for only those rows that meet a specific condition.
+
+For example, suppose you want to calculate the total revenue from paid orders, ignoring pending and cancelled orders.
+
+```
+SELECT SUM(CASE WHEN status = 'paid' THEN amount END)
+FROM orders;
+```
+
+### How it works
+
+Consider this `orders` table:
+
+| Order | Status    | Amount |
+| ----- | --------- | ------ |
+| 1     | paid      | 100    |
+| 2     | pending   | 200    |
+| 3     | paid      | 300    |
+| 4     | cancelled | 150    |
+
+The `CASE WHEN` expression checks each row:
+
+- If `status = 'paid'`, return `amount`.
+- Otherwise, return `NULL`.
+- `SUM()` adds the values, ignoring `NULL`.
+
+Result: 400 (100 + 300)
+
+### Why not just use `WHERE`?
+
+You can use `WHERE` when calculating one conditional total. But `CASE WHEN` is particularly useful when calculating multiple conditional totals in a single query.
+
+```
+SELECT
+    SUM(CASE WHEN status = 'paid' THEN amount END) AS paid,
+    SUM(CASE WHEN status = 'pending' THEN amount END) AS pending
+FROM orders;
+```
+
+Result:
+
+| paid | pending |
+| ---- | ------- |
+| 400  | 200     |
+
+### Production tip
+
+If no rows match a condition, `SUM()` returns `NULL`, not zero.
+
+Use `COALESCE()` to handle this:
+
+```
+COALESCE(SUM(CASE WHEN status = 'paid' THEN amount END), 0)
+```
+
+Key takeaway: `CASE WHEN` decides which values to include, while `SUM()` performs the aggregation.
+
+END closes CASE, just as a closing parenthesis ) closes an opening parenthesis (.
+
 # Oct 8, 2026
 
 Recursive chunking is a text-splitting strategy used in RAG (Retrieval-Augmented Generation) to divide large documents into smaller chunks while preserving meaningful text boundaries as much as possible.
