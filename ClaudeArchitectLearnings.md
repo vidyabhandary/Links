@@ -1,5 +1,182 @@
 # Some learnings for Claude Architect 
 
+## Oct 9, 2026
+
+# Foundations Checkpoint: Can You Diagnose an AI Architecture?
+
+**Level: Foundations Consolidation | Friday, 9 October 2026**
+
+## 1. Four-week consolidation
+
+The last four weeks covered reliability, evaluation, human oversight, tool integration, architecture selection, and performance optimization.
+
+The key architectural distinctions are:
+
+| If the problem involves... | Think first about... |
+|---|---|
+| Incorrect or unsupported answers | Evidence quality, retrieval, groundedness |
+| Invalid or unauthorized actions | Deterministic controls and permissions |
+| Unpredictable execution paths | Agentic orchestration |
+| Predictable processing steps | Workflows |
+| Repeated failures after tool errors | Retry policy, recovery, idempotency |
+| Uncertain or high-consequence decisions | Abstention, escalation, human review |
+| Expensive repeated context | Prompt caching |
+| Excessive or irrelevant context | Retrieval, compaction, context editing |
+| Poor results despite sufficient evidence | Prompt, effort, model capability |
+| Machine-readable decisions versus actions | Structured outputs versus tools |
+
+**One important distinction from Anthropic's evaluation guidance:** evaluate both the agent's reasoning process and the actual outcome. An agent can produce an excellent explanation while failing to complete the requested operation. [Anthropic](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents?utm_source=chatgpt.com)
+
+## 2. Integrated scenario
+
+A financial services company builds a Claude-based regulatory reporting assistant.
+
+The application:
+
+- Retrieves regulatory circulars and internal policies through RAG.
+- Extracts reporting information into structured JSON.
+- Uses an MCP-connected reporting service to submit reports.
+- Escalates exceptions requiring compliance approval.
+- Maintains conversation history for follow-up questions.
+
+Testing reveals four issues.
+
+**Issue A:** Claude occasionally cites superseded regulatory circulars, although current versions exist in the knowledge base.
+
+**Issue B:** Following a temporary reporting API failure, the application sometimes submits the same report twice.
+
+**Issue C:** A compliance officer observes that Claude occasionally announces successful submission even though the reporting service returned an error.
+
+**Issue D:** Processing costs increase substantially during lengthy conversations containing repeated policies and old tool results.
+
+Management proposes upgrading every request to the most capable Claude model and introducing another agent to verify every action.
+
+You must identify the appropriate interventions.
+
+---
+
+## 3. Question 1 — Root-cause diagnosis
+
+The team investigates Issue A.
+
+Retrieval traces show that both current and superseded regulations are returned. However, the older document frequently ranks above the newer one.
+
+Which intervention should come first?
+
+**A.** Upgrade Claude because selecting current regulations requires more reasoning capability.
+
+**B.** Increase the number of retrieved documents.
+
+**C.** Apply authoritative version and effective-date filtering before ranking, with retrieval evaluation to verify results.
+
+**D.** Add a system-prompt instruction requiring Claude to prefer recent documents.
+
+### Spot the clue
+
+**Both versions are retrieved, but an obsolete version ranks higher.**
+
+The issue concerns authoritative evidence selection, not necessarily Claude's reasoning capability.
+
+### Answer: C
+
+The retrieval layer should exclude documents that are no longer applicable or explicitly distinguish their historical status.
+
+Version metadata and effective-date rules establish document eligibility. Ranking then determines relevance among eligible documents.
+
+**Why D is tempting:** Claude can be instructed to consider document dates, but prompting leaves the underlying retrieval defect unresolved.
+
+Anthropic's Contextual Retrieval research demonstrates the importance of supplying identifying context to retrieved passages and evaluating retrieval separately from downstream generation. [Anthropic](https://www.anthropic.com/engineering/contextual-retrieval?utm_source=chatgpt.com)
+
+---
+
+## 4. Question 2 — Reliability and execution
+
+Issue B involves duplicate regulatory submissions after temporary API failures.
+
+The reporting service occasionally times out after accepting a report. The application cannot immediately determine whether submission succeeded.
+
+What is the best architecture?
+
+**A.** Retry immediately whenever the API times out.
+
+**B.** Ask Claude whether the previous submission probably succeeded.
+
+**C.** Introduce idempotency keys, check transaction status when outcomes are uncertain, and retry transient failures with bounded backoff.
+
+**D.** Disable automatic submission permanently.
+
+### Spot the clue
+
+**The operation may have succeeded even though the caller received no confirmation.**
+
+This is an uncertain execution outcome, not a reasoning problem.
+
+### Answer: C
+
+An idempotency key allows repeated requests for the same logical transaction to be recognized without creating duplicate submissions, provided the reporting service supports that guarantee.
+
+If the response is lost, the application should check authoritative transaction state before retrying where possible. Bounded retries with backoff help with transient failures but cannot independently guarantee exactly-once effects.
+
+**Why A is tempting:** retries improve availability, but blindly retrying non-idempotent operations can create duplicates.
+
+A stronger Claude model cannot resolve uncertainty about an external transaction without obtaining reliable execution evidence.
+
+---
+
+## 5. Question 3 — Select TWO
+
+Issues C and D remain.
+
+The team wants to improve confirmation accuracy and reduce context-processing cost without weakening regulatory controls.
+
+Which TWO interventions are most appropriate?
+
+**A.** Treat a successful Claude tool-call request as proof that the report was submitted.
+
+**B.** Verify successful submission from the reporting service's response or authoritative status before telling the user it succeeded.
+
+**C.** Cache repeatedly used stable policies and remove obsolete tool results from long-running conversations.
+
+**D.** Introduce additional agents that independently guess whether a submission succeeded.
+
+**E.** Send the complete conversation history indefinitely so Claude retains every detail.
+
+### Spot the clue
+
+Two independent problems exist: **reported success does not match actual execution**, and **conversation context contains repetitive or obsolete material**.
+
+### Answer: B and C
+
+**B addresses outcome verification.** Claude requesting an operation does not prove that the operation succeeded. The execution environment must return evidence of the result. Anthropic's tool-use documentation separates model-generated tool requests from execution and returned tool results. [Claude Platform](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview)
+
+**C addresses context efficiency.** Prompt caching reduces repeated processing of stable information, while context reduction removes information that no longer contributes to the task. Caching does not automatically remove irrelevant content. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+
+**Why A is tempting:** a correctly formed tool call demonstrates valid invocation arguments, not successful completion.
+
+**What could change the decision?** If the reporting API offered reliable transaction-status callbacks, those could replace synchronous status checks. If policies changed on every request, caching would provide less benefit.
+
+---
+
+## 6. Checkpoint assessment
+
+**Score yourself out of three questions.**
+
+- **3 correct:** Strong Foundations architectural judgment. Ready for the Professional bridge.
+- **2 correct:** Review the reasoning behind the missed decision, particularly the distinction between model behavior and system guarantees.
+- **0–1 correct:** Revisit evidence delivery, execution reliability, and evaluation before advancing to enterprise-level scenarios.
+
+The next phase will add organizational constraints: identity integration, governance, operational ownership, auditability, deployment patterns, and lifecycle management.
+
+## 7. One-line architect rule
+
+> **Diagnose the failing system boundary, establish what evidence proves success, and choose the smallest architectural change that addresses the root cause.**
+
+## 8. Source basis
+
+- **Anthropic Engineering — Demystifying evals for AI agents:** evaluating traces, actual outcomes, and failures. [Anthropic](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents?utm_source=chatgpt.com)
+- **Anthropic Engineering — Contextual Retrieval:** authoritative evidence delivery and retrieval quality. [Anthropic](https://www.anthropic.com/engineering/contextual-retrieval?utm_source=chatgpt.com)
+- **Official Claude Platform documentation:** tool execution contracts and prompt caching. [Claude Platform](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview)
+
 ## Oct 8, 2026
 
 # Prompt Caching vs Retrieval vs Context Reduction: Optimize the Right Problem
