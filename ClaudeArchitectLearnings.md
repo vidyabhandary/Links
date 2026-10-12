@@ -1,5 +1,124 @@
 # Some learnings for Claude Architect 
 
+## OCt 10, 2026
+
+# Week 13, Session 61 — Enterprise Identity: Who Is Claude Acting On Behalf Of?
+
+**Level: Foundation → Professional Bridge**  
+**Monday, 12 October 2026**
+
+## 1. Today's concept
+
+In Foundations, you learned how Claude accesses external systems through tools and MCP. At the Professional level, a new question becomes critical: **whose permissions should those tools execute with?** A successful enterprise SSO login identifies the employee, but it does not automatically guarantee that subsequent tool calls respect that employee's permissions. If Claude connects to CRM, SharePoint, or an internal database using a powerful shared service account, it may retrieve information the employee is not authorized to access.
+
+This introduces an important distinction between **authentication, authorization, and delegated execution**. Authentication establishes who the user is. Authorization determines which resources and operations that user can access. Delegated execution allows an application to perform permitted operations on the user's behalf. These concerns must survive the entire path from enterprise login through the application, Claude's tool selection, and the downstream system—not merely exist at the application's entry point.
+
+An enterprise architecture must therefore distinguish three identities:
+
+- **User identity:** The employee who initiated the request.
+- **Application identity:** The application or service connecting to enterprise systems.
+- **Execution authority:** The permissions under which a particular operation is actually performed.
+
+These identities can differ. In a user-delegated OAuth design, the application obtains appropriately scoped access for the target resource. In a machine-to-machine design, a service credential may execute operations, but the application must independently enforce the initiating user's entitlements. **A service account's technical ability to access a record does not establish the user's authorization to see it.**
+
+The current MCP authorization specification supports OAuth-based authorization for protected HTTP servers, including resource-specific access tokens and scope restrictions. MCP servers must validate that tokens were issued for them, rather than accepting arbitrary tokens intended for another service. These controls establish legitimate access to the MCP endpoint; business-level authorization, such as whether an employee may view a particular customer record, must still be enforced. [Model Context Protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+
+## 2. Why an architect cares
+
+A Claude application can function perfectly in a demonstration yet fail enterprise security review because its integration credentials are overprivileged. This is especially dangerous in multi-user applications: the model may correctly execute a requested tool call while the underlying integration returns data belonging to another user, customer, or department.
+
+**Professional architecture requires security boundaries that remain valid even when Claude selects an unexpected tool or receives malicious instructions.**
+
+## 3. Architect's lens
+
+1. **Who initiated this operation, and how is their verified identity carried into downstream authorization decisions?**
+
+2. **Does the integration execute using user-delegated permissions or broader application credentials—and what prevents privilege expansion?**
+
+3. **Can the downstream system independently enforce resource-level access and produce an auditable record of who requested what?**
+
+## 4. Real-life example
+
+A consulting company deploys a Claude assistant for account managers.
+
+Employees authenticate through Microsoft Entra ID. Claude accesses customer records through a shared CRM MCP server.
+
+During testing, one account manager asks about another manager's confidential customer portfolio. Surprisingly, Claude retrieves the information successfully.
+
+The problem is not SSO. The employee was correctly authenticated.
+
+The MCP server uses a shared administrator-level CRM credential, while account-level permissions are enforced only in the application's user interface.
+
+The company redesigns the integration to use delegated, appropriately scoped access where supported. The CRM validates the requesting user's record-level permissions.
+
+For service-account operations, the integration separately verifies user entitlements before accessing records.
+
+**The security boundary moves from what Claude is instructed to retrieve to what the downstream service actually permits.**
+
+## 5. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A multinational organization deploys a Claude-based employee assistant integrated with its document management platform.
+
+Requirements:
+
+- Employees authenticate using corporate SSO.
+- Each employee must see only documents permitted by their departmental and project memberships.
+- Claude accesses documents through an MCP server.
+- The existing MCP server uses one service account with access to every document.
+- Security policy prohibits cross-department information disclosure.
+
+What is the **best architectural approach**?
+
+**A.** Keep the service account and instruct Claude never to retrieve documents outside the user's department.
+
+**B.** Use appropriately scoped user-delegated authorization, with document-level access enforced by the downstream service and user identity captured in audit records.
+
+**C.** Keep the administrator service account but remove sensitive documents from the initial search results displayed to the user.
+
+**D.** Allow broad retrieval and use a second Claude model to check whether the answer contains restricted information.
+
+## 6. Spot the clue
+
+The decisive combination is:
+
+> **“Each employee must see only documents permitted by their memberships”** and **“one service account with access to every document.”**
+
+The problem is an authorization mismatch between the employee and the integration—not insufficient prompting or model capability.
+
+## 7. Answer reasoning
+
+**Correct answer: B.**
+
+The architecture should preserve the user's permissions across the integration.
+
+Ideally, the MCP server receives a resource-specific access token representing appropriately delegated user authorization. It validates the token's intended audience, scopes, and validity.
+
+The downstream document platform then determines whether that user can access the requested document.
+
+Importantly, **OAuth scopes and document-level permissions solve different problems**. A `documents:read` scope might permit reading through an API, but it does not necessarily authorize access to every document exposed by that API.
+
+MCP's official authorization specification distinguishes authorization failures from insufficient permissions and supports least-privilege scopes. Its security guidance also warns against improper token forwarding and confused-deputy vulnerabilities, where a privileged intermediary is manipulated into performing unauthorized actions. [Model Context Protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+
+**Why A is tempting but weaker:** Claude can be instructed to respect departments, and such instructions may reduce accidental violations. However, a prompt is not an enforceable security boundary. Incorrect tool parameters or malicious retrieved content could still trigger unauthorized access.
+
+**Why C is also insufficient:** filtering the user interface does not necessarily protect underlying tool calls. If the MCP server can retrieve unauthorized documents, the sensitive information may already have crossed the security boundary before any response filtering occurs.
+
+**What could change the decision?** If the downstream platform cannot support delegated user credentials, a carefully designed service-account integration may be acceptable, provided a trusted authorization layer independently checks the initiating user's permissions before every operation. For unattended background jobs with no initiating employee, application-level identity and explicitly defined service permissions may be more appropriate.
+
+**Current enterprise development:** MCP's Enterprise-Managed Authorization extension, announced stable on June 18, 2026, allows organizations to centrally provision MCP access through their identity provider. It reduces repeated authorization setup, but enterprise administrators must still configure appropriate access policies. [Model Context Protocol Blog](https://blog.modelcontextprotocol.io/posts/enterprise-managed-auth/?utm_source=chatgpt.com)
+
+## 8. One-line architect rule
+
+> **Enterprise SSO authenticates the user; every downstream tool must independently respect the authority under which that user or application is allowed to act.**
+
+## 9. Source basis
+
+- Official **MCP Authorization Specification (2026-07-28)** — OAuth authorization, resource-specific tokens, scopes, and permission enforcement. [Model Context Protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+- Official **MCP Security Best Practices** — token handling and confused-deputy security risks. [Model Context Protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic/security_best_practices)
+- Official **MCP project announcement, June 18, 2026** — Enterprise-Managed Authorization. [Model Context Protocol Blog](https://blog.modelcontextprotocol.io/posts/enterprise-managed-auth/?utm_source=chatgpt.com)
+
 ## Oct 9, 2026
 
 # Foundations Checkpoint: Can You Diagnose an AI Architecture?
