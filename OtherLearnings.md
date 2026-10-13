@@ -1,3 +1,87 @@
+# Oct 13, 2026
+
+## Metamorphic Testing 
+— Test LLMs Without Knowing Every Correct Answer
+
+**Domain:** E — Evaluation & Quality Engineering  
+**Reading time:** 2–3 minutes
+
+### 1. Concept
+
+Traditional software testing works like this:
+
+```text
+Input → Expected Output → Compare
+```
+
+But LLMs can produce many different valid answers. Defining the exact expected output for every question is difficult.
+
+**Metamorphic Testing** solves this differently.
+
+Instead of checking whether an answer matches a reference, it checks whether the model behaves **consistently when the input changes in a way that should not affect the result**.
+
+For example:
+
+**Question A:** "I was charged twice for my order."
+
+**Question B:** "My order has two identical charges."
+
+Both should be classified as `BILLING`.
+
+If the model classifies A as `BILLING` but B as `OTHER`, we have discovered a reliability problem.
+
+The key idea:
+
+> **Test relationships between outputs, rather than requiring a known correct answer for every input.**
+
+### 2. Realistic business case
+
+Imagine an AI-powered customer-support system that classifies tickets into:
+
+`BILLING | DELIVERY | OTHER`
+
+Your test dataset contains 500 tickets.
+
+The model achieves 96% classification accuracy.
+
+Sounds good!
+
+But when you paraphrase those same tickets, 12% receive different classifications.
+
+This exposes something your original accuracy test missed: **the model is sensitive to irrelevant wording differences**.
+
+### 4. When to use it
+
+**Use:** LLM classification, extraction, reasoning, multilingual applications and agent decision-making where semantically equivalent inputs should produce consistent outcomes.
+
+**Don't use:** When changing the input legitimately changes the expected outcome. For example, adding "not" can reverse a sentence's meaning.
+
+Also, paraphrases must be verified to preserve the original meaning.
+
+### 5. Important 2026 development
+
+A March 24, 2026 paper, **LLMORPH**, demonstrated automated metamorphic testing using 36 transformation relationships across four NLP benchmarks.
+
+The researchers performed more than **561,000 test executions**, demonstrating how this approach can uncover inconsistencies without requiring human-labeled answers for every test. [arXiv](https://arxiv.org/abs/2603.23611?utm_source=chatgpt.com)
+
+### 6. Architecture takeaway
+
+Enterprise GenAI evaluations should answer two different questions:
+
+| Evaluation | Question |
+|---|---|
+| Accuracy testing | Is the answer correct? |
+| Metamorphic testing | Does the answer remain consistent under irrelevant input changes? |
+
+**A model can achieve high accuracy on your benchmark while remaining unreliable when real users phrase questions differently.**
+
+Metamorphic testing helps expose that weakness before deployment.
+
+---
+
+**Topic ledger update:** Metamorphic Testing / semantic invariance  
+**Domain:** E — Evaluation & Quality Engineering
+
 # Oct 9, 2026
 
 ## SQL Knowledge Nugget: Conditional Aggregation using `CASE WHEN`
