@@ -127,7 +127,46 @@ Application logging must also be designed carefully. An audit trail does not nec
 - Official **Claude Platform — API and Data Retention**, checked 13 October 2026: ZDR eligibility and feature-specific retention. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/api-and-data-retention)
 - Official **Claude Platform — Data Residency**: inference geography versus storage geography. [Claude Platform](https://platform.claude.com/docs/en/manage-claude/data-residency)
 
-I noticed you haven’t viewed this scheduled task in a while. Would you like me to keep it running?
+# Translation table
+
+
+| What I've been saying | The industry term | What it actually is |
+|---|---|---|
+| the searching step | **retrieval** | finding and fetching the passages |
+| the writing step | **generation** | the model drafting the answer from them |
+| the text handed to the model | **the context** (or context window) | what generation can actually see |
+| splitting documents | **chunking** | how documents are cut into retrievable pieces |
+| the sorting step | **reranking** | re-scoring fetched candidates, keeping the best few |
+| the found-it score | **Recall@K** | did the right document appear in the top K fetched |
+| stayed inside what it was given | **groundedness** / **faithfulness** | generation not straying beyond the context |
+| made something up | **hallucination** | the symptom you see in the output — note it has *two* possible causes |
+
+Two, and they take completely different fixes — which is the whole reason the distinction matters.
+
+**Cause 1 — a retrieval failure (the fetching half).** The fact the answer needed was never in the **context** (the text handed to the model). The model has a gap in front of it and fills it anyway: partly from **parametric knowledge** (facts absorbed into its weights during training, with no document behind them), partly from pattern-completion — this *looks* like the shape of a dosing instruction, so it produces something dosing-instruction-shaped.
+
+The model is behaving reasonably. It was given an incomplete brief.
+
+Where it breaks, in order of how often: chunking split the content away from what identifies it · the search never surfaced it · reranking dropped it before it reached the model · the query didn't match how the document is worded.
+
+**Cause 2 — a generation failure (the drafting half).** The fact **was** in the context, and the model went past it anyway: contradicted it, fused two passages into a claim neither makes, over-generalised a conditional ("in patients over 65" quietly becomes "in patients"), or answered a question the context only partly covers rather than saying so.
+
+Here the brief was complete and the model didn't stay inside it.
+
+**The fix sets barely overlap:**
+
+| | Retrieval failure | Generation failure |
+|---|---|---|
+| Fix | chunking, search, reranking, query handling | grounding constraints in the prompt, structured output that forces a citation per claim, a verification pass, a stronger or differently-prompted model |
+| Measured by | Recall@K against your test set | groundedness / faithfulness checks |
+
+Apply the wrong set and the number does not move — which is what makes "we added a faithfulness guardrail and it didn't help" such a common story.
+
+**And the one people forget — the corpus simply doesn't contain the answer.** No amount of retrieval tuning fixes this, because there is nothing to retrieve. Technically a retrieval failure; architecturally its own thing, because the fix is *content acquisition*, not engineering.
+
+Customers routinely assume their document set covers what their people ask. It usually doesn't — the answer lives in someone's head, in email, or in a system nobody mentioned in the RFP. 
+
+One vocabulary note to round it off: you'll see **closed-domain hallucination** (contradicts the context it was given) versus **open-domain hallucination** (wrong about the world, no context involved). In a RAG conversation, "hallucination" almost always means the closed-domain kind.
 
 ## Oct 11, 2026
 
