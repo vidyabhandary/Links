@@ -1,5 +1,127 @@
 # Some learnings for Claude Architect 
 
+## Oct 14, 2026
+
+# Durable Workflows: Why Claude Should Not Own Business Process State
+
+**Level: Foundation → Professional Bridge**  
+**Wednesday, 14 October 2026**
+
+## 1. Today's concept
+
+Yesterday's lesson covered where enterprise data is processed and stored. Today addresses a related question: **who maintains the state of a business process when execution spans multiple systems, minutes, or even days?**
+
+In Foundations, you learned how Claude invokes tools, receives results, and decides what to do next. This works well for short operations. But consider an enterprise procurement process: Claude reviews a purchase request, an employee approves it two days later, the ERP creates a purchase order, and a supplier system confirms receipt. No single Claude conversation or API request should be responsible for keeping that entire process alive.
+
+The critical distinction is between **conversation state and business process state**.
+
+Conversation state contains messages, tool calls, reasoning context, and previous results. Business process state records which steps have actually completed, which approvals remain outstanding, and which operations are permitted next. A conversation transcript may help Claude resume its reasoning, but it should not be the authoritative record that determines whether an invoice has been paid or an order approved. Anthropic's Agent SDK hosting guidance distinguishes persisted agent sessions from the operational infrastructure responsible for process lifecycle, recovery, and routing. [Claude Platform](https://platform.claude.com/cookbook/claude-agent-sdk-07-hosting-the-agent)
+
+For long-running enterprise processes, use **durable orchestration**: a workflow engine, persistent job queue, or application-managed state machine records progress independently of Claude. A state machine defines the permitted stages and transitions of a process. For example:
+
+`RECEIVED → ANALYZED → AWAITING_APPROVAL → APPROVED → EXECUTED`
+
+Claude may analyze documents and recommend an approval. But the workflow engine records the decision, waits for the authorized approver, and invokes the ERP only after the required transition occurs. If a server crashes during the approval wait, processing can resume from persisted state without asking Claude to reconstruct what happened.
+
+The architectural objective is to make **business execution deterministic where it must be**, while using Claude selectively for tasks requiring interpretation or judgment.
+
+## 2. Why an architect cares
+
+An AI prototype often works because everything happens inside one running application process. Production introduces different conditions: API timeouts, application restarts, unavailable downstream systems, delayed approvals, and users returning after several days.
+
+Without durable workflow state, these events can produce lost requests, repeated work, inconsistent process status, or unauthorized progression.
+
+A Professional-level architect must separate three responsibilities: **Claude determines or recommends**, the **orchestrator controls progression**, and the **system of record confirms business outcomes**.
+
+This separation also improves operability. Support teams can inspect a process ID and identify exactly where execution stopped without reconstructing an entire AI conversation.
+
+## 3. Architect's lens
+
+1. **Can the complete operation finish within a normal request, or must it survive timeouts, restarts, or delayed human decisions?**
+
+2. **Which states and transitions must be persisted independently of Claude's conversation history?**
+
+3. **Which component has authority to advance the process, and what external evidence proves that each business action actually completed?**
+
+## 4. Real-life example
+
+A manufacturer introduces a Claude assistant for supplier onboarding.
+
+Claude extracts supplier information, identifies missing documents, and evaluates compliance questionnaires.
+
+Some suppliers can be approved immediately. Others require a procurement manager's approval, which may take several days.
+
+The initial implementation keeps the entire process inside a long-running agent session. When application containers restart, some pending approvals become difficult to recover.
+
+The architecture is redesigned around a persistent onboarding workflow.
+
+Claude performs document analysis and returns structured findings. The workflow engine stores the findings, records the pending approval, and stops active processing.
+
+When the manager approves, an event resumes the workflow. The system then creates the supplier record through the ERP API and verifies the outcome.
+
+Claude does not need to remain active while waiting for approval.
+
+## 5. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A multinational company is implementing a Claude-based vendor onboarding application.
+
+Requirements:
+
+- Claude analyzes supplier documents and recommends approval or rejection.
+- Certain suppliers require human approval, sometimes taking up to 72 hours.
+- The ERP system creates supplier records after approval.
+- Application containers may restart during processing.
+- Users must be able to check the exact status of their requests.
+- The solution must avoid unnecessary architectural complexity.
+
+Which is the **best design**?
+
+**A.** Maintain one continuous Claude conversation for each onboarding request and keep the application process running until completion.
+
+**B.** Use a durable workflow with persisted business states, invoke Claude for document analysis, pause for human approval, and resume ERP integration when the approval event arrives.
+
+**C.** Use Anthropic's Message Batches API to manage document analysis, human approvals, and ERP execution as one asynchronous batch.
+
+**D.** Introduce multiple Claude agents, each responsible for remembering one stage of the onboarding process.
+
+## 6. Spot the clue
+
+The decisive combination is:
+
+> **"Human approval, sometimes taking up to 72 hours"** and **"application containers may restart."**
+
+The process must survive beyond any individual model invocation or application instance.
+
+## 7. Answer reasoning
+
+**Correct answer: B.**
+
+The durable workflow provides an authoritative record of process progress. Claude is invoked when intelligence is needed, but it is not responsible for remembering whether a manager approved a supplier three days earlier.
+
+A suitable implementation persists the onboarding request and its current state in a database or workflow engine. When analysis completes, the workflow transitions to `AWAITING_APPROVAL`.
+
+The application can release its computing resources while waiting. An authenticated approval event later triggers the next permitted transition.
+
+After ERP execution, the workflow records the ERP's authoritative response, including the resulting supplier identifier.
+
+**Why A is tempting but weaker:** Claude Agent SDK sessions can persist conversation history and resume across interactions. However, preserving a conversation does not automatically provide a durable business workflow with approval events, execution guarantees, and authoritative business states. Anthropic's hosting guidance explicitly treats process lifecycle and persistent session management as operational responsibilities. [Claude Platform](https://platform.claude.com/cookbook/claude-agent-sdk-07-hosting-the-agent)
+
+**Why C is also tempting:** Anthropic's Message Batches API supports asynchronous processing of many independent model requests, making it useful for high-volume document analysis. But **asynchronous model inference is not the same as durable business orchestration**. The Batches API does not replace an enterprise workflow engine coordinating approvals and ERP transactions. [Claude Platform](https://platform.claude.com/docs/en/api/messages/batches)
+
+**What could change the decision?** If onboarding involved only document classification, with no human approval or downstream transaction, a simple API call or background worker might be sufficient. If thousands of independent documents needed overnight classification, Message Batches could be used for the analysis stage while the business workflow retained ownership of overall process state.
+
+## 8. One-line architect rule
+
+> **Let Claude perform intelligent steps, but let durable application infrastructure own business state, approvals, recovery, and process completion.**
+
+## 9. Source basis
+
+- Official **Claude Platform — How Tool Use Works**: separation between Claude's tool requests and application-controlled execution. [Claude Platform](https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works)
+- Official **Anthropic Claude Cookbook — Hosting Your Agent**, May 22, 2026: session persistence, process lifecycle, and production hosting responsibilities. [Claude Platform](https://platform.claude.com/cookbook/claude-agent-sdk-07-hosting-the-agent)
+- Official **Claude API — Message Batches**: asynchronous model processing and its execution boundaries. [Claude Platform](https://platform.claude.com/docs/en/api/messages/batches)
+
 ## Oct 12, 2026
 
 # Enterprise Data Boundaries: Where Does Claude Actually Store Your Data?
