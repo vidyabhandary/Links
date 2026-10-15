@@ -1,5 +1,140 @@
 # Some learnings for Claude Architect 
 
+## Oct 15, 2026
+
+# Choosing Where Claude Runs: Direct API vs Cloud Platforms
+
+**Level: Foundation → Professional Bridge**  
+**Thursday, 15 October 2026**
+
+## 1. Today's concept
+
+During the previous three sessions, you learned how enterprise architecture must handle identity, data governance, and durable business processes. Today's architectural trade-off brings these together: **where should an enterprise access Claude, and who operates the inference infrastructure?**
+
+Claude is available through Anthropic's direct API and cloud platforms, including AWS and Google Cloud. However, selecting the same Claude model through different platforms does not necessarily produce identical architectures. Authentication, billing, feature availability, regional processing, support arrangements, and operational responsibility may differ. Anthropic's documentation recommends choosing the platform based on infrastructure, compliance requirements, feature availability, and pricing preferences. [Claude Platform](https://platform.claude.com/docs/en/api/overview?utm_source=chatgpt.com)
+
+Consider three deployment choices:
+
+| Option | Key architectural characteristic | Best fit |
+|---|---|---|
+| **Direct Claude API** | Direct Anthropic relationship, billing, and access to Claude platform features | Applications prioritizing native feature access and simplicity |
+| **Amazon Bedrock** | AWS-operated inference, integrated with AWS governance and infrastructure | Enterprises requiring AWS-managed processing and established AWS controls |
+| **Claude Platform on AWS** | Anthropic-operated inference with AWS authentication and billing integration | AWS customers wanting Anthropic's native platform capabilities |
+
+The third option is particularly important. Claude Platform on AWS became generally available on **May 11, 2026**. Although customers use AWS accounts, IAM, and consolidated billing, Anthropic operates the inference infrastructure and processes customer data outside the AWS security boundary. This differs materially from Amazon Bedrock, where AWS operates the inference service. [Amazon Web Services, Inc.](https://aws.amazon.com/about-aws/whats-new/2026/05/claude-platform-aws/?utm_source=chatgpt.com)
+
+The deeper architectural distinction is between **commercial integration and operational responsibility**. Purchasing a service through AWS does not automatically mean all processing occurs within AWS-controlled infrastructure. Similarly, choosing an AWS Region does not independently guarantee that inference remains geographically restricted to that region. The architect must verify the actual processing boundary, permitted routing configuration, and contractual commitments.
+
+## 2. Why an architect cares
+
+An enterprise may already have approved cloud accounts, security policies, monitoring infrastructure, procurement agreements, and data residency obligations.
+
+Choosing the wrong Claude access route can create security certification delays, unexpected operational responsibilities, missing API capabilities, or additional compliance work.
+
+**Professional architects must select the platform that satisfies mandatory enterprise constraints before optimizing for convenience or feature richness.**
+
+The selection must also be validated against real workloads: equivalent model names do not guarantee identical regional availability, quotas, latency, or feature support.
+
+## 3. Architect's lens
+
+1. **Who must operate and process inference—the model provider or an approved cloud provider?**
+
+2. **What existing identity, billing, networking, audit, and data residency controls must the integration satisfy?**
+
+3. **Which required Claude capabilities are actually supported on the chosen platform and in the permitted region?**
+
+## 4. Real-life example
+
+A European insurance company operates most applications on AWS.
+
+It wants Claude to analyze insurance claims, extract relevant policy provisions, and recommend settlement actions.
+
+Its security policy requires the approved AWS-operated processing environment and geographically restricted inference.
+
+The architecture team initially chooses Claude Platform on AWS because it supports IAM authentication and AWS billing.
+
+Security review identifies a problem: Anthropic, rather than AWS, operates that inference infrastructure.
+
+The team instead selects Amazon Bedrock, configures an appropriate geographically restricted inference option, and verifies model availability.
+
+The claims application retains its existing AWS identity, workflow, and monitoring infrastructure.
+
+Claude still performs the document interpretation. The surrounding AWS services retain responsibility for permissions, approvals, and settlement execution.
+
+The model's business function remains unchanged, but the deployment architecture now satisfies the organization's operational boundary.
+
+## 5. Exam-style question
+
+**Practice-derived scenario — not an authentic Anthropic certification question.**
+
+A multinational financial institution is deploying Claude for compliance investigations.
+
+Its requirements include:
+
+- The institution already operates a mature AWS environment.
+- All model inference must be operated by AWS.
+- Sensitive data must be processed within an approved European geographic boundary.
+- Existing AWS identity and governance controls must be reused.
+- Standard Claude reasoning and tool-use capabilities are sufficient.
+- Access to the newest Anthropic-specific platform features is desirable but not mandatory.
+
+Which architecture is the **best choice**?
+
+**A.** Use the direct Claude API because Anthropic develops and operates Claude.
+
+**B.** Use Claude Platform on AWS because AWS IAM and billing automatically ensure AWS-operated inference.
+
+**C.** Use Amazon Bedrock with an approved geographically restricted inference configuration, subject to confirming the required model's regional availability.
+
+**D.** Use Amazon Bedrock with unrestricted global inference routing to maximize availability.
+
+## 6. Spot the clue
+
+The decisive constraints are:
+
+> **"All model inference must be operated by AWS."**
+
+and
+
+> **"Processed within an approved European geographic boundary."**
+
+These are mandatory operational and geographic requirements, not preferences about model capability.
+
+## 7. Answer reasoning
+
+**Correct answer: C.**
+
+Amazon Bedrock is the strongest choice because AWS operates its inference infrastructure, and suitable regional routing configurations can support defined geographic processing requirements.
+
+The architect must still verify that the selected model, endpoint, routing policy, and associated services meet the specific geographic restrictions.
+
+Anthropic's Bedrock documentation distinguishes global routing, which prioritizes availability, from regional routing, which constrains geographic processing. The regional options can have different pricing and availability characteristics. [Claude Platform Docs](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock?utm_source=chatgpt.com)
+
+**Why B is tempting but weaker:** Claude Platform on AWS integrates closely with AWS IAM, billing, and operational tooling. It may therefore appear equivalent to Bedrock from an enterprise procurement perspective.
+
+However, it is Anthropic-operated. Its AWS commercial integration does not satisfy the explicit requirement for AWS-operated inference.
+
+**Why D is weaker:** global routing can improve availability but may conflict with the mandatory geographic restriction. Higher availability cannot compensate for violating a non-negotiable compliance constraint.
+
+### What could change the decision?
+
+If the institution permitted Anthropic-operated processing and needed Claude features unavailable through Bedrock, Claude Platform on AWS might become preferable.
+
+If processing geography were unrestricted and maximum availability were the highest priority, global inference routing could become appropriate.
+
+The architect should then compare feature support, latency, quotas, contractual commitments, and total operating cost before finalizing the choice.
+
+## 8. One-line architect rule
+
+> **Select Claude's deployment platform by mandatory processing, security, and integration constraints—not merely by cloud affiliation or model availability.**
+
+## 9. Source basis
+
+- Official **Anthropic Claude Platform — API Overview**: direct API versus cloud-platform selection. [Claude Platform](https://platform.claude.com/docs/en/api/overview?utm_source=chatgpt.com)
+- Official **Anthropic Claude Platform — Claude Platform on AWS**: operating responsibility, AWS integration, and processor boundaries. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/claude-platform-on-aws?utm_source=chatgpt.com)
+- Official **AWS announcement, May 11, 2026**, and Anthropic Bedrock documentation: deployment distinctions and geographic routing. [Amazon Web Services, Inc.](https://aws.amazon.com/about-aws/whats-new/2026/05/claude-platform-aws/?utm_source=chatgpt.com)
+
+
 ## Oct 14, 2026
 
 # Durable Workflows: Why Claude Should Not Own Business Process State
