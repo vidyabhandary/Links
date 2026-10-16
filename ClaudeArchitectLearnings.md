@@ -1,5 +1,174 @@
 # Some learnings for Claude Architect 
 
+## Oct 16, 2026
+
+# Can You Defend Your Claude Solution?
+
+**Level: Foundation → Professional Bridge**  
+**Friday, 16 October 2026**
+
+## 1. Today's focus — Four enterprise architecture decisions
+
+This week's lessons introduced four dimensions that distinguish an enterprise-ready Claude solution from a functional prototype.
+
+**Session 61 — Identity and authorization:** Enterprise SSO identifies the user, but downstream systems must independently enforce what that user can access. A Claude tool using an administrator-level service account does not automatically inherit the user's permissions.
+
+**Session 62 — Data governance:** Model training policies, retention guarantees, and data residency are different controls. Zero Data Retention (ZDR) applies only to eligible features under an approved arrangement; persistent storage and external integrations require separate assessment. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/api-and-data-retention?utm_source=chatgpt.com)
+
+**Session 63 — Durable business workflows:** Claude can analyze information and recommend actions, but long-running processes need persistent business state. Application infrastructure must manage approvals, restarts, execution, and recovery.
+
+**Session 64 — Platform selection:** The direct Claude API, Claude Platform on AWS, and Amazon Bedrock have different operational boundaries. In particular, Claude Platform on AWS is Anthropic-operated, whereas Amazon Bedrock is AWS-operated. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/claude-platform-on-aws?utm_source=chatgpt.com)
+
+The Professional-level challenge is to satisfy all four simultaneously.
+
+---
+
+## 2. Integrated scenario — Enterprise HR onboarding
+
+A multinational organization wants to implement a Claude-based employee onboarding assistant.
+
+**Business requirements**
+
+The assistant must review joining documents, identify missing information, answer HR policy questions, and initiate employee provisioning after HR approval.
+
+**Technical environment**
+
+- Employees and HR administrators authenticate through Microsoft Entra ID.
+- HR documents reside in an internal document management system.
+- Workday manages employee records.
+- Provisioning approvals sometimes take 48 hours.
+- The organization primarily uses AWS.
+
+**Enterprise constraints**
+
+- Employees must never access other employees' confidential records.
+- The HR security team prohibits persistent document storage by the AI provider.
+- The organization requires AWS-operated inference.
+- Processing must continue reliably after application restarts.
+- Every completed provisioning action must be auditable.
+
+The proposed architecture uses Claude Platform on AWS, a shared administrator account for document retrieval, the Files API for storing uploaded documents, and one continuous Claude agent session to handle approvals.
+
+**Your task:** Identify the most important architectural corrections.
+
+---
+
+## 3. Question 1 — Security and data governance
+
+**Select TWO**
+
+Which changes most directly address the organization's identity and data-handling requirements?
+
+**A.** Keep the administrator credential but instruct Claude to retrieve only documents belonging to the logged-in employee.
+
+**B.** Enforce employee-specific authorization within the document integration using delegated credentials or a trusted entitlement-checking service.
+
+**C.** Store all uploaded documents using Anthropic's Files API because it automatically inherits ZDR.
+
+**D.** Keep documents in approved internal storage and send only necessary content through an inference path that satisfies the organization's data-handling requirements.
+
+### Spot the clue
+
+Two independent constraints drive this decision:
+
+**"Employees must never access other employees' confidential records."**
+
+**"No persistent document storage by the AI provider."**
+
+### Answer: B and D
+
+**B** ensures the integration enforces access rights independently of Claude's instructions.
+
+**D** keeps document persistence under approved enterprise controls while permitting necessary model processing.
+
+**Why C is tempting:** the Files API simplifies document reuse. However, Anthropic explicitly identifies it as not ZDR-eligible; files persist until deletion or expiration. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/files?utm_source=chatgpt.com)
+
+**What could change the decision?** If the organization explicitly approved provider-managed document storage under a suitable retention agreement, the Files API could become an option.
+
+---
+
+## 4. Question 2 — Durable orchestration
+
+The initial solution keeps Claude running while awaiting HR approval.
+
+After an application restart, several requests have uncertain status.
+
+What is the best correction?
+
+**A.** Increase Claude's context window to preserve more conversation history.
+
+**B.** Introduce a second agent to remember the approval status.
+
+**C.** Use a durable workflow that persists request states and resumes provisioning when an authorized approval event arrives.
+
+**D.** Increase the maximum execution time of the Claude request.
+
+### Spot the clue
+
+**"Approvals sometimes take 48 hours"** and **"application restarts."**
+
+The problem concerns business process durability, not model memory.
+
+### Answer: C
+
+Persisted workflow states allow the application to resume execution without relying on an uninterrupted Claude session.
+
+Claude evaluates joining documents. The workflow records the assessment and waits for approval. After HR approves, the application invokes Workday and records the verified result.
+
+**Why A is tempting:** more conversation context preserves additional information, but it does not provide reliable transaction status, restart recovery, or approval enforcement.
+
+Anthropic's tool-use documentation explicitly separates Claude's requested actions from their actual execution. [Claude Platform](https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works?utm_source=chatgpt.com)
+
+**What could change the decision?** A single synchronous document-classification request would not justify a durable workflow engine.
+
+---
+
+## 5. Question 3 — Platform selection
+
+The security team requires AWS to operate the model inference service.
+
+Which choice best satisfies this requirement?
+
+**A.** Direct Claude API.
+
+**B.** Claude Platform on AWS.
+
+**C.** Amazon Bedrock with an approved inference configuration.
+
+**D.** Any Claude deployment using AWS IAM authentication.
+
+### Spot the clue
+
+**"AWS-operated inference"** is the decisive requirement.
+
+AWS identity integration or billing does not establish who operates the inference infrastructure.
+
+### Answer: C
+
+Amazon Bedrock provides AWS-operated Claude inference.
+
+Claude Platform on AWS offers AWS authentication and billing integration, but Anthropic operates its inference stack.
+
+**Why B is tempting:** both offerings integrate with AWS, but their processor and operating responsibilities differ. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/claude-platform-on-aws?utm_source=chatgpt.com)
+
+The architect must also verify that the chosen model and routing configuration meet geographic processing restrictions.
+
+**What could change the decision?** If Anthropic-operated inference were permitted and native Claude platform capabilities became mandatory, Claude Platform on AWS could be reconsidered.
+
+---
+
+## 6. One-line architect rule
+
+> **An enterprise Claude architecture is defined not just by what the model can do, but by who authorizes it, where data flows, what survives failure, and who operates the infrastructure.**
+
+## 7. Source basis
+
+- Official **Claude Platform — API and Data Retention**: feature-specific retention and ZDR eligibility. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/api-and-data-retention?utm_source=chatgpt.com)
+- Official **Claude Platform — Tool Use**: model requests versus application execution. [Claude Platform](https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works?utm_source=chatgpt.com)
+- Official **Claude Platform on AWS** documentation: operating responsibilities and Bedrock comparison. [Claude Platform](https://platform.claude.com/docs/en/build-with-claude/claude-platform-on-aws?utm_source=chatgpt.com)
+
+I've paused this task because updates haven't been viewed in a while. You can resume it in the Scheduled tab or by asking ChatGPT.
+
 ## Oct 15, 2026
 
 # Choosing Where Claude Runs: Direct API vs Cloud Platforms
