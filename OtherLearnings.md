@@ -1,3 +1,321 @@
+# Oct 21, 2026
+
+## 🧠 Why an AI Can Feel Faster Without Being Faster
+
+**Domain:** H — Inference & Serving  
+**Reading time:** 2–3 minutes
+
+### 1. Concept
+
+Normally, an application waits for an LLM to generate its complete answer before displaying anything.
+
+**Streaming** changes this: the model sends pieces of its response as they become available.
+
+```text
+WITHOUT STREAMING
+User → LLM generates entire answer → Display
+       |------- 8 seconds -------|
+
+WITH STREAMING
+User → LLM → First text → More text → Complete
+             0.8 sec                  8 sec
+```
+
+*Times are illustrative.*
+
+The total generation time might remain eight seconds, but the user starts receiving information much earlier.
+
+This introduces an important performance metric:
+
+**TTFT (Time to First Token):** How long until the first generated output becomes available?
+
+Streaming primarily improves *perceived responsiveness*, not necessarily total processing time.
+
+OpenAI's Responses API supports streaming through **Server-Sent Events (SSE)**, transmitting incremental output as typed events. [OpenAI Developers](https://developers.openai.com/api/docs/guides/streaming-responses?utm_source=chatgpt.com)
+
+### 2. Realistic business case
+
+Imagine an enterprise AI assistant explaining a complex financial report.
+
+Without streaming, users stare at a loading indicator for 15 seconds.
+
+With streaming, they see:
+
+```text
+0.9s  "Revenue increased..."
+2.1s  "The primary driver was..."
+4.5s  "However, operating costs..."
+15s   Complete explanation
+```
+
+The backend might consume approximately the same resources, but the user can start reading immediately.
+
+### 3. Production-oriented code
+
+Using **FastAPI + OpenAI's asynchronous SDK**:
+
+```python
+import json
+import logging
+from collections.abc import AsyncIterator
+
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+from openai import AsyncOpenAI, OpenAIError
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
+
+
+class Settings(BaseSettings):
+    model: str = Field(min_length=1)
+
+
+cfg = Settings()
+client = AsyncOpenAI(timeout=30, max_retries=1)
+app = FastAPI()
+
+
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=3000)
+
+
+def sse(event: str, text: str) -> str:
+    return f"event: {event}\ndata: {json.dumps(text)}\n\n"
+
+
+@app.post("/chat")
+async def chat(data: ChatRequest):
+
+    async def generate() -> AsyncIterator[str]:
+        completed = False
+
+        try:
+            stream = await client.responses.create(
+                model=cfg.model,
+                input=data.question,
+                stream=True,
+                max_output_tokens=600,
+                store=False,
+            )
+
+            async with stream:
+                async for event in stream:
+                    if event.type == "response.output_text.delta":
+                        yield sse("text", event.delta)
+
+                    elif event.type == "response.completed":
+                        completed = True
+                        yield sse("done", "")
+
+                    elif event.type in (
+                        "error", "response.failed",
+                        "response.incomplete"
+                    ):
+                        logger.warning("generation_failed")
+                        yield sse("error", "Generation unsuccessful")
+                        return
+
+            if not completed:
+                yield sse("error", "Response incomplete")
+
+        except OpenAIError:
+            logger.exception("streaming_failed")
+            yield sse("error", "Service unavailable")
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache"},
+    )
+```
+
+Configure `MODEL` and `OPENAI_API_KEY` through environment variables. Deploy the endpoint behind authentication and appropriate rate limits.
+
+**Important lines:**
+
+`stream=True` instructs the model API to stream output.
+
+`response.output_text.delta` represents newly generated text.
+
+`yield` forwards each piece immediately to the client.
+
+FastAPI's `StreamingResponse` supports this asynchronous streaming pattern. [FastAPI](https://fastapi.tiangolo.com/advanced/custom-response/?utm_source=chatgpt.com)
+
+### 4. When to use it
+
+**Use:** Conversational assistants, AI copilots, document explanations, interactive research tools, and applications generating lengthy answers.
+
+**Don't use:** Workflows that must validate the entire output before displaying it, such as regulated recommendations or responses requiring complete security checks.
+
+Streaming introduces an important tradeoff: **partial output becomes visible before the full response has been validated**. OpenAI also highlights this moderation challenge in its streaming guidance. [OpenAI Developers](https://developers.openai.com/api/docs/guides/streaming-responses?utm_source=chatgpt.com)
+
+### 5. Architecture takeaway
+
+Measure three distinct things:
+
+| Metric | What it tells you |
+|---|---|
+| TTFT | How quickly the user sees the first output |
+| Total latency | How long the complete response takes |
+| Output throughput | How quickly subsequent tokens arrive |
+
+A model with lower total latency isn't necessarily the one that feels most responsive.
+
+**Architecture principle:** For interactive GenAI applications, optimize both actual latency and perceived latency. Streaming is often an effective way to improve user experience without changing the underlying model.
+
+# When Your LLM Evaluation Score Lies
+
+**Domain:** E — Evaluation & Quality Engineering  
+**Reading time:** 2–3 minutes
+
+### 1. Concept
+
+Imagine an LLM scoring 95% on an evaluation benchmark.
+
+Impressive—but what if the model has already encountered some of those questions during training?
+
+This is **data contamination**, also called training-test leakage.
+
+The model might be recalling familiar answers rather than demonstrating its ability to solve new problems.
+
+```text
+Training Data ────────┐
+                      │
+               Overlapping examples
+                      │
+Evaluation Data ──────┘
+                      ↓
+                Inflated scores
+```
+
+**Key distinction:** A high evaluation score does not necessarily indicate strong generalization to unseen problems.
+
+### 2. Realistic business case
+
+An enterprise fine-tunes an LLM to classify customer support tickets.
+
+It uses 10,000 historical tickets for training and 2,000 for evaluation.
+
+Initial accuracy: **94%**.
+
+However, many evaluation tickets are nearly identical to training examples.
+
+After removing overlapping examples, suppose accuracy drops to **81%**.
+
+The original evaluation was misleading because the test dataset wasn't sufficiently independent.
+
+The numbers are illustrative, but the underlying problem is well established.
+
+### 3. Production-oriented code
+
+We can detect potential overlap using **MinHash + Locality-Sensitive Hashing (LSH)**.
+
+MinHash creates compact signatures representing text similarity. LSH efficiently identifies likely near-duplicates without comparing every document against every other document.
+
+Python's `datasketch` library implements both. [Ekzhu](https://ekzhu.com/datasketch/documentation.html?utm_source=chatgpt.com)
+
+```python
+import logging
+
+from datasketch import MinHash, MinHashLSH
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
+
+
+class Settings(BaseSettings):
+    overlap_threshold: float = Field(
+        default=0.85, gt=0.0, le=1.0
+    )
+
+
+cfg = Settings()
+
+
+def fingerprint(text: str) -> MinHash:
+    words = text.casefold().split()
+
+    if not words:
+        raise ValueError("Empty evaluation text")
+
+    signature = MinHash(num_perm=128)
+
+    for i in range(max(1, len(words) - 2)):
+        phrase = " ".join(words[i:i + 3])
+        signature.update(phrase.encode("utf-8"))
+
+    return signature
+
+
+def validate_eval_split(
+    training: dict[str, str],
+    evaluation: dict[str, str],
+) -> None:
+
+    if not training or not evaluation:
+        raise ValueError("Both datasets are required")
+
+    index = MinHashLSH(
+        threshold=cfg.overlap_threshold,
+        num_perm=128,
+    )
+
+    for record_id, text in training.items():
+        index.insert(record_id, fingerprint(text))
+
+    flagged = sum(
+        bool(index.query(fingerprint(text)))
+        for text in evaluation.values()
+    )
+
+    logger.info(
+        "contamination_check",
+        extra={"flagged_examples": flagged},
+    )
+
+    if flagged:
+        raise ValueError(
+            f"{flagged} evaluation examples may overlap training"
+        )
+```
+
+**What the code does:**
+
+1. Generates similarity fingerprints for training examples.
+2. Builds an efficient similarity index.
+3. Checks evaluation examples for likely overlap.
+4. Blocks the evaluation pipeline when suspicious examples are found.
+
+This is a screening mechanism, not proof of contamination. LSH is approximate, and semantically equivalent paraphrases may escape detection. Flagged examples should be reviewed.
+
+### 4. When to use it
+
+**Use:** Fine-tuning pipelines, benchmark construction, model comparisons, and release evaluations.
+
+**Don't rely on it alone:** When evaluating proprietary foundation models whose original training datasets are inaccessible. You cannot comprehensively detect contamination without knowing what those models encountered.
+
+### 5. Important development
+
+A **May 19, 2026 research paper**, *LLM Benchmark Datasets Should Be Contamination-Resistant*, argues that conventional benchmark construction is insufficient and proposes designing evaluations that resist training-data memorization. [arXiv](https://arxiv.org/abs/2605.19999?utm_source=chatgpt.com)
+
+The broader architectural lesson is that contamination prevention should be part of benchmark design, not merely a cleanup exercise.
+
+### 6. Architecture takeaway
+
+For enterprise GenAI evaluations, distinguish:
+
+| Question | What it measures |
+|---|---|
+| Can the model answer familiar questions? | Potential memorization |
+| Can it answer genuinely unseen questions? | Generalization |
+
+**Architecture principle:** Keep evaluation datasets independent, versioned, and protected from training pipelines.
+
+> **An evaluation dataset is not a reliable test simply because you call it a test dataset.**
+
 # Oct 13, 2026
 
 ## Metamorphic Testing 
