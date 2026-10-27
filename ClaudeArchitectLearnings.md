@@ -1,5 +1,155 @@
 # Some learnings for Claude Architect 
 
+## Oct 27, 2026
+
+# Safe AI Releases: When Should You Deploy, Canary, or Roll Back?
+
+**Level: Foundation → Professional Bridge**  
+**27 October 2026 | Continuing from Session 68**
+
+## 1. Today's concept
+
+Sessions 66–68 established how to observe Claude applications, define reliability targets, and measure operating costs. Today's architectural trade-off is **how to introduce a change without unexpectedly degrading quality, reliability, or business outcomes**.
+
+In traditional software, automated tests can establish whether a function returns the expected result. AI systems introduce a complication: changing the model, prompt, retrieval configuration, or tool definitions may alter behavior even when the application code remains unchanged. A more capable model might produce better explanations but choose tools differently. A shorter prompt might reduce costs while missing important compliance conditions. Consequently, **a successful deployment does not establish that the new AI configuration is suitable for production**.
+
+A Professional architect should treat the complete AI configuration as a versioned release: model identifier, prompt version, retrieval configuration, tool schemas, guardrail policies, and relevant application code. Before deployment, evaluate the candidate against representative test cases and compare it with the current production baseline. Anthropic's evaluation guidance emphasizes task-specific criteria, real-world cases, edge cases, and appropriate automated or human grading. A newer model should not automatically be assumed superior for every application. [Claude Platform](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests?utm_source=chatgpt.com)
+
+Three release techniques provide different levels of protection:
+
+- **Offline evaluation:** Run a candidate configuration against a controlled dataset before deployment. This identifies known regressions but cannot reproduce every production condition.
+- **Shadow deployment:** Send a copy of production requests to the candidate configuration while the existing system remains authoritative. Compare outputs and performance without allowing the candidate to perform live business actions.
+- **Canary deployment:** Route a small percentage of real production traffic to the candidate, measure actual outcomes, and increase exposure only when predefined acceptance criteria are satisfied.
+
+The important distinction is that **shadow testing observes behavior without giving the candidate production authority**, whereas a canary deliberately exposes a limited group of users to the changed system. Neither technique replaces the other. Shadow testing is valuable for identifying unexpected behavior safely; canaries establish whether the candidate performs acceptably under real production conditions.
+
+## 2. Why an architect cares
+
+An enterprise AI release can simultaneously improve cost and latency while degrading correctness.
+
+For example, a prompt optimization might reduce inference expenditure by 25% but increase incorrect compliance classifications from 1% to 3%.
+
+If classification accuracy is a contractual or regulatory requirement, the cost saving cannot justify the regression.
+
+The architect must therefore establish **release acceptance criteria before testing**, including conditions that prohibit deployment regardless of financial benefits.
+
+A release decision should consider business risk, not simply average model performance.
+
+## 3. Architect's lens
+
+1. **Which model, prompt, retrieval, tool, or policy changes could affect observable behavior, and can I identify the exact configuration being tested?**
+
+2. **Which quality, latency, cost, security, and business-outcome metrics must remain within acceptable limits before increasing production exposure?**
+
+3. **Can the candidate run without executing business actions, and can production traffic be returned safely to the previous configuration if problems emerge?**
+
+## 4. Real-life example
+
+A financial services company uses Claude to analyze loan applications and recommend cases requiring manual review.
+
+A new model performs better on standard evaluation questions and costs 20% less.
+
+Management proposes an immediate production replacement.
+
+The architect first compares the candidate against historical applications, including unusual employment histories and incomplete financial records.
+
+The candidate performs well overall but incorrectly categorizes some borderline applications.
+
+The team adjusts the prompt and repeats testing.
+
+Next, the candidate runs in shadow mode against live application requests. Its recommendations are recorded for comparison but cannot influence approval workflows.
+
+After meeting predefined quality thresholds, the team enables a limited canary deployment.
+
+Actual review outcomes and operational metrics determine whether traffic increases.
+
+The release decision is based on demonstrated production suitability—not model benchmarks alone.
+
+## 5. Exam-style question
+
+*Practice-derived scenario — not an authentic Anthropic certification question.*
+
+An enterprise deploys Claude to support regulatory compliance investigations.
+
+The current solution has operated reliably for six months.
+
+A newer Claude model offers improved benchmark performance and lower inference costs.
+
+The proposed migration changes the model identifier and requires some prompt adjustments.
+
+Requirements:
+
+- Incorrect compliance recommendations carry significant regulatory consequences.
+- Existing evaluation tests cover common investigation scenarios.
+- Production contains unusual cases absent from the evaluation dataset.
+- The organization needs evidence that the new configuration preserves quality.
+- Investigations must not be interrupted during migration.
+- The migration should minimize operational risk.
+
+What is the **best release strategy**?
+
+**A.** Deploy the new model immediately because its improved benchmark results indicate superior reasoning capability.
+
+**B.** Complete offline regression evaluations, run the new configuration in shadow mode without business side effects, and then use a monitored canary with predefined rollback criteria.
+
+**C.** Deploy the new model to all users but retain the previous prompt configuration so that only one component changes.
+
+**D.** Send every production request to both models and automatically execute whichever recommendation receives the higher confidence score.
+
+## 6. Spot the clue
+
+The decisive combination is:
+
+> **"Significant regulatory consequences"** and **"unusual cases absent from the evaluation dataset."**
+
+The system needs evidence beyond standard benchmarks, while maintaining existing operational continuity.
+
+## 7. Answer reasoning
+
+**Correct answer: B.**
+
+This approach addresses the different uncertainties in the migration.
+
+**First, offline regression evaluation** compares the existing and proposed configurations against known investigation cases.
+
+The test set should cover ordinary requests, boundary cases, incomplete evidence, and situations requiring escalation.
+
+For compliance workflows, evaluation should distinguish between incorrect recommendations that merely require rework and those that could create serious regulatory exposure.
+
+**Second, shadow testing** assesses the candidate against realistic production inputs without allowing it to influence investigation decisions.
+
+The application must explicitly prevent shadow tool calls from performing external actions. Simply duplicating an agent request is unsafe if it can initiate notifications, update case records, or trigger approvals.
+
+**Third, canary deployment** exposes a controlled percentage of investigations to the candidate.
+
+The team monitors recommendation quality, escalation accuracy, tool errors, latency, and cost per completed investigation.
+
+Traffic increases only when acceptance criteria are satisfied.
+
+**Why C is tempting but weaker:** changing one component at a time is generally good engineering practice. However, Anthropic documents that model migrations can require prompt changes and comprehensive application testing. Keeping the previous prompt unchanged does not guarantee equivalent behavior. [Claude Platform](https://platform.claude.com/docs/en/docs/about-claude/model-deprecations?utm_source=chatgpt.com)
+
+**Why D is insufficient:** a model-generated confidence score is not necessarily a calibrated measure of correctness. Selecting the apparently more confident answer does not establish which recommendation is accurate or compliant.
+
+**What could change the decision?** For a low-risk internal summarization tool, offline evaluation followed by a small canary might be sufficient without a separate shadow stage. Conversely, a system making irreversible financial decisions may require additional human authorization and stronger release controls.
+
+### Professional-level consideration: What exactly gets rolled back?
+
+Rolling back the model identifier alone may be insufficient if the deployment simultaneously changed prompts, tool schemas, and retrieval behavior.
+
+The deployment system should retain the previously approved **complete configuration**.
+
+Anthropic's model documentation also distinguishes fixed model snapshots from earlier alias-based identifiers. Explicit version control makes migration testing and rollback more predictable. [Claude Platform](https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions?utm_source=chatgpt.com)
+
+## 8. One-line architect rule
+
+> **Promote AI changes through measured evidence: evaluate offline, observe safely, expose gradually, and roll back the complete configuration when acceptance criteria fail.**
+
+## 9. Source basis
+
+- Official **Claude Platform — Define Success Criteria and Build Evaluations**: evaluation design, representative datasets, and grading methods. [Claude Platform](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests?utm_source=chatgpt.com)
+- Official **Claude Platform — Model Deprecations and Migration Guidance**: model lifecycle and migration testing. [Claude Platform](https://platform.claude.com/docs/en/docs/about-claude/model-deprecations?utm_source=chatgpt.com)
+- Official **Claude Platform — Model IDs and Versioning**: fixed model snapshots and version behavior. [Claude Platform](https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions?utm_source=chatgpt.com)
+
 ## Oct 16, 2026
 
 # Can You Defend Your Claude Solution?
